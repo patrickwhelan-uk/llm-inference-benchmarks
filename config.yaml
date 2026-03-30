@@ -1,0 +1,46 @@
+# LLM Inference Benchmark Configuration
+# See docs/methodology.md for details on each parameter.
+
+hardware_profile: "rtx5090"
+
+# Path to llama.cpp's llama-bench binary (built with CUDA support)
+llama_bench_path: "/usr/local/bin/llama-bench"
+
+# Directory containing GGUF model files
+model_dir: "/models"
+
+models:
+  - name: "llama-3.1-8b"
+    repo: "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF"
+    quants: ["Q4_K_M", "Q5_K_M", "Q8_0", "F16"]
+
+  - name: "llama-3.1-70b"
+    repo: "bartowski/Meta-Llama-3.1-70B-Instruct-GGUF"
+    quants: ["Q4_K_M"]  # Only Q4 fits in 32GB VRAM
+
+  - name: "mistral-7b-v0.3"
+    repo: "bartowski/Mistral-7B-Instruct-v0.3-GGUF"
+    quants: ["Q4_K_M", "Q8_0"]
+
+  - name: "qwen2.5-7b"
+    repo: "bartowski/Qwen2.5-7B-Instruct-GGUF"
+    quants: ["Q4_K_M", "Q8_0"]
+
+  - name: "deepseek-r1-distill-llama-8b"
+    repo: "bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF"
+    quants: ["Q4_K_M", "Q8_0"]
+
+  - name: "phi-4"
+    repo: "bartowski/phi-4-GGUF"
+    quants: ["Q4_K_M", "Q8_0"]
+
+benchmark_params:
+  prompt_tokens: 512       # Input prompt length in tokens
+  generation_tokens: 128   # Number of tokens to generate
+  n_runs: 3                # Repetitions per configuration (mean + std dev reported)
+  gpu_layers: -1           # -1 = offload all layers to GPU
+  context_size: 4096       # Context window size
+  threads: 8               # CPU threads (used for non-offloaded layers)
+
+nvidia_smi:
+  power_sample_interval_ms: 100  # Power draw sampling interval
