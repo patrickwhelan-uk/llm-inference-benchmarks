@@ -1,0 +1,92 @@
+{
+  "model": "qwen3.5-9b",
+  "params": "9B",
+  "arch": "Qwen3.5",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 5090",
+      "vram_total_mb": "32607",
+      "driver_version": "595.97",
+      "cuda_version": "13.2"
+    },
+    "cpu": {
+      "model": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+      "cores": 32
+    },
+    "ram_gb": 191.7,
+    "os": {
+      "system": "Windows",
+      "release": "10",
+      "version": "10.0.26200"
+    },
+    "python_version": "3.10.11",
+    "timestamp": "2026-03-31T23:31:15.596219+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "lmstudio",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 237.44,
+      "std": 0.06,
+      "values": [
+        237.47680890538595,
+        237.366713027336,
+        237.47680890538595
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 170.87,
+      "std": 9.12,
+      "values": [
+        169.33333333333334,
+        162.61203585148309,
+        180.6543385489651
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 2.16,
+      "std": 0.0,
+      "values": [
+        2.155999999999949,
+        2.157000000000153,
+        2.155999999999949
+      ]
+    },
+    "gpu": {
+      "peak_vram_mb": 9401.0,
+      "mean_power_w": 140.0,
+      "peak_power_w": 345.13,
+      "n_samples": 84
+    },
+    "wall_time_s": 11.78,
+    "engine": "lmstudio",
+    "runs": [
+      {
+        "ttft_s": 2.156,
+        "generation_s": 0.75,
+        "prompt_tokens": 0,
+        "completion_tokens": 127
+      },
+      {
+        "ttft_s": 2.157,
+        "generation_s": 0.781,
+        "prompt_tokens": 0,
+        "completion_tokens": 127
+      },
+      {
+        "ttft_s": 2.156,
+        "generation_s": 0.703,
+        "prompt_tokens": 0,
+        "completion_tokens": 127
+      }
+    ]
+  }
+}
