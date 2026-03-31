@@ -2,13 +2,13 @@
 """
 LLM Inference Benchmark Runner
 
-Runs llama-bench against configured models and quantisations, captures performance
-metrics and GPU telemetry, and produces structured JSON results with a summary table.
+Runs benchmarks against configured models using either llama-bench or LM Studio's
+OpenAI-compatible API. Captures performance metrics and GPU telemetry, and produces
+structured JSON results with a summary table.
 
 Usage:
     python run_benchmarks.py                          # Run all benchmarks
-    python run_benchmarks.py --model llama-3.1-8b     # Run one model (all quants)
-    python run_benchmarks.py --model llama-3.1-8b --quant Q4_K_M  # Single combo
+    python run_benchmarks.py --model llama-3.1-8b     # Run one model
     python run_benchmarks.py --dry-run                # Show what would run
 """
 
@@ -18,7 +18,6 @@ import os
 import platform
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import threading
@@ -26,6 +25,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import requests
 import yaml
 
 
@@ -94,6 +94,15 @@ def get_system_info() -> dict:
                 capture_output=True, text=True, timeout=10,
             )
             info["ram_gb"] = round(int(result.stdout.strip()) / 1024**3, 1)
+        elif platform.system() == "Windows":
+            result = subprocess.run(
+                ["powershell", "-Command",
+                 "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory"],
+                capture_output=True, text=True, timeout=10,
+            )
+            mem_bytes = result.stdout.strip()
+            if mem_bytes.isdigit():
+                info["ram_gb"] = round(int(mem_bytes) / 1024**3, 1)
     except Exception:
         pass
 
@@ -161,7 +170,282 @@ class NvidiaSmiMonitor:
 
 
 # ---------------------------------------------------------------------------
-# Model file resolution
+# Statistics helper
+# ---------------------------------------------------------------------------
+
+def compute_stats(values: list[float]) -> dict:
+    """Compute mean and standard deviation for a list of values."""
+    n = len(values)
+    mean = sum(values) / n
+    if n > 1:
+        variance = sum((v - mean) ** 2 for v in values) / (n - 1)
+        std = variance ** 0.5
+    else:
+        std = 0.0
+    return {"mean": round(mean, 2), "std": round(std, 2), "values": values}
+
+
+# ---------------------------------------------------------------------------
+# LM Studio engine
+# ---------------------------------------------------------------------------
+
+def load_lmstudio_model(lms_path: str, model_id: str, context_size: int, gpu_offload: str, timeout_s: int = 120) -> bool:
+    """Load a model in LM Studio via the CLI."""
+    cmd = [
+        lms_path, "load", model_id,
+        "--gpu", str(gpu_offload),
+        "-c", str(context_size),
+        "-y",
+    ]
+    print(f"  Loading model: {' '.join(cmd)}")
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, encoding="utf-8", errors="replace")
+        if result.returncode != 0:
+            print(f"  ERROR loading model: {result.stderr.strip()}")
+            return False
+    except subprocess.TimeoutExpired:
+        print(f"  ERROR: Model load timed out after {timeout_s}s")
+        return False
+
+    # Verify model is loaded by polling lms ps
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            ps_result = subprocess.run(
+                [lms_path, "ps"], capture_output=True, text=True, timeout=10,
+                encoding="utf-8", errors="replace",
+            )
+            if model_id.lower() in ps_result.stdout.lower():
+                print(f"  Model loaded successfully")
+                return True
+        except Exception:
+            pass
+        time.sleep(1)
+
+    # If lms ps doesn't clearly show the model, check the API
+    try:
+        resp = requests.get("http://localhost:1234/v1/models", timeout=5)
+        for m in resp.json().get("data", []):
+            if model_id.lower() in m["id"].lower():
+                print(f"  Model loaded (confirmed via API)")
+                return True
+    except Exception:
+        pass
+
+    print(f"  WARNING: Could not confirm model loaded, proceeding anyway")
+    return True
+
+
+def unload_lmstudio_models(lms_path: str):
+    """Unload all models from LM Studio."""
+    try:
+        subprocess.run(
+            [lms_path, "unload", "--all"],
+            capture_output=True, text=True, timeout=30,
+            encoding="utf-8", errors="replace",
+        )
+        # Give LM Studio a moment to free VRAM
+        time.sleep(2)
+    except Exception as e:
+        print(f"  WARNING: Failed to unload models: {e}")
+
+
+def read_prompt_file(prompt_path: str = "prompts/standard_512.txt") -> str:
+    """Read the standard benchmark prompt from file."""
+    path = Path(prompt_path)
+    if not path.exists():
+        print(f"  ERROR: Prompt file not found at {path}")
+        sys.exit(1)
+    return path.read_text(encoding="utf-8").strip()
+
+
+def run_lmstudio_single(api_base: str, model_id: str, prompt: str, max_tokens: int) -> dict | None:
+    """Run a single inference request against LM Studio and measure timing.
+
+    Returns dict with ttft_s, generation_s, prompt_tokens, completion_tokens,
+    generated_text, or None on failure.
+    """
+    url = f"{api_base}/chat/completions"
+    payload = {
+        "model": model_id,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": 0.0,
+        "stream": True,
+    }
+
+    try:
+        start_time = time.monotonic()
+        response = requests.post(url, json=payload, stream=True, timeout=600)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"  ERROR: API request failed: {e}")
+        return None
+
+    first_token_time = None
+    last_token_time = None
+    generated_text = []
+    token_count = 0
+    prompt_tokens = 0
+    completion_tokens = 0
+
+    for line in response.iter_lines(decode_unicode=True):
+        if not line or not line.startswith("data: "):
+            continue
+
+        data_str = line[6:]  # strip "data: " prefix
+        if data_str.strip() == "[DONE]":
+            break
+
+        try:
+            chunk = json.loads(data_str)
+        except json.JSONDecodeError:
+            continue
+
+        # Extract usage from the final chunk if available
+        if "usage" in chunk:
+            prompt_tokens = chunk["usage"].get("prompt_tokens", 0)
+            completion_tokens = chunk["usage"].get("completion_tokens", 0)
+
+        choices = chunk.get("choices", [])
+        if not choices:
+            continue
+
+        delta = choices[0].get("delta", {})
+        content = delta.get("content", "")
+
+        if content:
+            now = time.monotonic()
+            if first_token_time is None:
+                first_token_time = now
+            last_token_time = now
+            generated_text.append(content)
+            token_count += 1
+
+    if first_token_time is None:
+        print(f"  ERROR: No tokens received from API")
+        return None
+
+    ttft_s = first_token_time - start_time
+
+    # Use API-reported token count if available, otherwise use chunk count
+    if completion_tokens > 0:
+        actual_completion = completion_tokens
+    else:
+        actual_completion = token_count
+
+    # Generation time: time between first and last token
+    if last_token_time > first_token_time:
+        generation_s = last_token_time - first_token_time
+    else:
+        generation_s = 0.001  # single token edge case
+
+    return {
+        "ttft_s": ttft_s,
+        "generation_s": generation_s,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": actual_completion,
+        "generated_text": "".join(generated_text),
+        "total_time_s": last_token_time - start_time,
+    }
+
+
+def run_lmstudio_bench(
+    config: dict,
+    model_cfg: dict,
+    params: dict,
+    monitor: NvidiaSmiMonitor,
+) -> dict | None:
+    """Run benchmark for a model via LM Studio API."""
+
+    lmstudio_cfg = config["lmstudio"]
+    api_base = lmstudio_cfg["api_base"]
+    lms_path = lmstudio_cfg["lms_path"]
+    model_id = model_cfg["lmstudio_id"]
+    load_timeout = lmstudio_cfg.get("load_timeout_s", 120)
+    gpu_offload = lmstudio_cfg.get("gpu_offload", "max")
+
+    # Load model
+    if not load_lmstudio_model(lms_path, model_id, params["context_size"], gpu_offload, load_timeout):
+        return None
+
+    # Read prompt
+    prompt = read_prompt_file()
+
+    n_total = params["n_runs"] + 1  # +1 for warm-up
+    print(f"  Running {n_total} iterations ({params['n_runs']} measured + 1 warm-up)")
+
+    monitor.start()
+    start_time = time.monotonic()
+
+    all_runs = []
+    for i in range(n_total):
+        label = "warm-up" if i == 0 else f"run {i}/{params['n_runs']}"
+        print(f"  [{label}] ", end="", flush=True)
+
+        result = run_lmstudio_single(api_base, model_id, prompt, params["generation_tokens"])
+        if result is None:
+            print("FAILED")
+            continue
+
+        tg_speed = result["completion_tokens"] / result["generation_s"] if result["generation_s"] > 0 else 0
+        print(f"TTFT={result['ttft_s']:.3f}s, {tg_speed:.1f} t/s, {result['completion_tokens']} tokens")
+        all_runs.append(result)
+
+    elapsed = time.monotonic() - start_time
+    monitor.stop()
+
+    # Unload model to free VRAM for next benchmark
+    unload_lmstudio_models(lms_path)
+
+    if len(all_runs) < 2:
+        print(f"  ERROR: Not enough successful runs")
+        return None
+
+    # Discard warm-up (first run)
+    measured_runs = all_runs[1:]
+
+    # Compute metrics
+    ttft_values = [r["ttft_s"] for r in measured_runs]
+    tg_values = [r["completion_tokens"] / r["generation_s"] for r in measured_runs if r["generation_s"] > 0]
+
+    # Prompt eval speed: prompt_tokens / ttft
+    # LM Studio may not report prompt_tokens in streaming mode, so fall back
+    # to the configured prompt_tokens as an estimate.
+    pp_values = []
+    for r in measured_runs:
+        pt = r["prompt_tokens"] if r["prompt_tokens"] > 0 else params["prompt_tokens"]
+        if r["ttft_s"] > 0:
+            pp_values.append(pt / r["ttft_s"])
+
+    if not tg_values:
+        print(f"  ERROR: No valid generation measurements")
+        return None
+
+    gpu_summary = monitor.get_summary()
+
+    return {
+        "prompt_eval_tokens_per_s": compute_stats(pp_values) if pp_values else {"mean": 0, "std": 0, "values": []},
+        "generation_tokens_per_s": compute_stats(tg_values),
+        "time_to_first_token_s": compute_stats(ttft_values),
+        "gpu": gpu_summary,
+        "wall_time_s": round(elapsed, 2),
+        "engine": "lmstudio",
+        "runs": [
+            {
+                "ttft_s": round(r["ttft_s"], 4),
+                "generation_s": round(r["generation_s"], 4),
+                "prompt_tokens": r["prompt_tokens"],
+                "completion_tokens": r["completion_tokens"],
+            }
+            for r in measured_runs
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# llama-bench engine (original)
 # ---------------------------------------------------------------------------
 
 def resolve_model_path(model_dir: str, model_name: str, quant: str) -> Path | None:
@@ -199,25 +483,13 @@ def resolve_model_path(model_dir: str, model_name: str, quant: str) -> Path | No
     return None
 
 
-# ---------------------------------------------------------------------------
-# llama-bench execution
-# ---------------------------------------------------------------------------
-
 def parse_llama_bench_output(output: str) -> dict | None:
-    """Parse llama-bench CSV/table output into structured metrics.
-
-    llama-bench outputs a markdown-style table or CSV. We look for the numeric
-    columns: prompt eval tokens/s (pp) and generation tokens/s (tg).
-    """
+    """Parse llama-bench CSV/table output into structured metrics."""
     metrics = {"pp_tokens_per_s": [], "tg_tokens_per_s": []}
 
     for line in output.splitlines():
-        # llama-bench outputs lines like:
-        # | model | ... | pp512 t/s | tg128 t/s | ...
-        # Look for numeric values in pipe-delimited columns.
         if "|" in line:
             cols = [c.strip() for c in line.split("|")]
-            # Find columns with numeric values that look like throughput
             nums = []
             for col in cols:
                 try:
@@ -226,7 +498,6 @@ def parse_llama_bench_output(output: str) -> dict | None:
                         nums.append(val)
                 except ValueError:
                     continue
-            # llama-bench typically outputs pp then tg in the last two numeric cols
             if len(nums) >= 2:
                 metrics["pp_tokens_per_s"].append(nums[-2])
                 metrics["tg_tokens_per_s"].append(nums[-1])
@@ -284,7 +555,6 @@ def run_llama_bench(
 
     print(f"  Completed in {elapsed:.1f}s")
 
-    # Parse output
     metrics = parse_llama_bench_output(result.stdout)
     if metrics is None:
         print("  WARNING: Could not parse llama-bench output")
@@ -296,23 +566,12 @@ def run_llama_bench(
         if len(metrics[key]) > 1:
             metrics[key] = metrics[key][1:]
 
-    # Compute stats
-    def stats(values: list[float]) -> dict:
-        n = len(values)
-        mean = sum(values) / n
-        if n > 1:
-            variance = sum((v - mean) ** 2 for v in values) / (n - 1)
-            std = variance ** 0.5
-        else:
-            std = 0.0
-        return {"mean": round(mean, 2), "std": round(std, 2), "values": values}
-
-    pp_stats = stats(metrics["pp_tokens_per_s"])
-    tg_stats = stats(metrics["tg_tokens_per_s"])
+    pp_stats = compute_stats(metrics["pp_tokens_per_s"])
+    tg_stats = compute_stats(metrics["tg_tokens_per_s"])
 
     # TTFT = prompt_tokens / pp_tokens_per_s
     ttft_values = [params["prompt_tokens"] / pp for pp in metrics["pp_tokens_per_s"]]
-    ttft_stats = stats(ttft_values)
+    ttft_stats = compute_stats(ttft_values)
 
     gpu_summary = monitor.get_summary()
 
@@ -322,6 +581,7 @@ def run_llama_bench(
         "time_to_first_token_s": ttft_stats,
         "gpu": gpu_summary,
         "wall_time_s": round(elapsed, 2),
+        "engine": "llama-bench",
         "raw_output": result.stdout,
     }
 
@@ -330,14 +590,14 @@ def run_llama_bench(
 # Result storage
 # ---------------------------------------------------------------------------
 
-def save_result(result: dict, results_dir: Path, model_name: str, quant: str):
+def save_result(result: dict, results_dir: Path, model_name: str, quant: str = "default"):
     """Save benchmark result as a JSON file."""
     results_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{model_name}_{quant}_{timestamp}.json"
     path = results_dir / filename
 
-    # Remove raw output before saving (it's large and not structured)
+    # Remove large fields before saving
     save_data = {k: v for k, v in result.items() if k != "raw_output"}
 
     with open(path, "w") as f:
@@ -360,25 +620,28 @@ def generate_summary(results: list[dict], results_dir: Path):
         "",
         f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
         "",
-        "| Model | Quant | Prompt Eval (t/s) | Generation (t/s) | TTFT (s) | Peak VRAM (MB) | Mean Power (W) |",
-        "|-------|-------|-------------------|-----------------|----------|----------------|----------------|",
+        "| Model | Params | Arch | Prompt Eval (t/s) | Generation (t/s) | TTFT (s) | Peak VRAM (MB) | Mean Power (W) |",
+        "|-------|--------|------|-------------------|-----------------|----------|----------------|----------------|",
     ]
 
-    for r in sorted(results, key=lambda x: (x["model"], x["quant"])):
+    for r in sorted(results, key=lambda x: x["model"]):
         metrics = r["metrics"]
         pp = metrics["prompt_eval_tokens_per_s"]
         tg = metrics["generation_tokens_per_s"]
         ttft = metrics["time_to_first_token_s"]
         gpu = metrics["gpu"]
 
-        pp_str = f"{pp['mean']:.1f} +/- {pp['std']:.1f}"
+        pp_str = f"{pp['mean']:.1f} +/- {pp['std']:.1f}" if pp["mean"] > 0 else "N/A"
         tg_str = f"{tg['mean']:.1f} +/- {tg['std']:.1f}"
         ttft_str = f"{ttft['mean']:.3f} +/- {ttft['std']:.3f}"
         vram_str = str(gpu.get("peak_vram_mb", "N/A"))
         power_str = str(gpu.get("mean_power_w", "N/A"))
 
+        params_str = r.get("params", "")
+        arch_str = r.get("arch", "")
+
         lines.append(
-            f"| {r['model']} | {r['quant']} | {pp_str} | {tg_str} | {ttft_str} | {vram_str} | {power_str} |"
+            f"| {r['model']} | {params_str} | {arch_str} | {pp_str} | {tg_str} | {ttft_str} | {vram_str} | {power_str} |"
         )
 
     lines.append("")
@@ -402,25 +665,45 @@ def main():
     parser = argparse.ArgumentParser(description="LLM Inference Benchmark Runner")
     parser.add_argument("--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--model", help="Run only this model (by name in config)")
-    parser.add_argument("--quant", help="Run only this quantisation level")
+    parser.add_argument("--quant", help="Run only this quantisation level (llama-bench only)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would run without executing")
     args = parser.parse_args()
 
     config = load_config(args.config)
     hardware_profile = config["hardware_profile"]
-    llama_bench_path = config["llama_bench_path"]
-    model_dir = config["model_dir"]
+    engine = config.get("engine", "llama-bench")
     params = config["benchmark_params"]
     smi_interval = config.get("nvidia_smi", {}).get("power_sample_interval_ms", 100)
 
     results_dir = Path("results") / hardware_profile
 
-    # Validate llama-bench exists
-    if not args.dry_run and not shutil.which(llama_bench_path):
-        if not Path(llama_bench_path).is_file():
-            print(f"ERROR: llama-bench not found at '{llama_bench_path}'")
-            print("Set 'llama_bench_path' in config.yaml to the correct path.")
-            sys.exit(1)
+    # Validate engine prerequisites
+    if engine == "llama-bench":
+        llama_bench_path = config["llama_bench_path"]
+        if not args.dry_run and not shutil.which(llama_bench_path):
+            if not Path(llama_bench_path).is_file():
+                print(f"ERROR: llama-bench not found at '{llama_bench_path}'")
+                print("Set 'llama_bench_path' in config.yaml or switch engine to 'lmstudio'.")
+                sys.exit(1)
+    elif engine == "lmstudio":
+        lmstudio_cfg = config.get("lmstudio", {})
+        lms_path = lmstudio_cfg.get("lms_path", "lms")
+        if not args.dry_run:
+            # Check LM Studio server is running
+            api_base = lmstudio_cfg.get("api_base", "http://localhost:1234/v1")
+            try:
+                resp = requests.get(f"{api_base}/models", timeout=5)
+                resp.raise_for_status()
+                available_models = {m["id"] for m in resp.json().get("data", [])}
+                print(f"LM Studio server: OK ({len(available_models)} models available)")
+            except Exception as e:
+                print(f"ERROR: Cannot reach LM Studio API at {api_base}")
+                print(f"  Ensure LM Studio is running with the server enabled.")
+                print(f"  Detail: {e}")
+                sys.exit(1)
+    else:
+        print(f"ERROR: Unknown engine '{engine}'. Use 'lmstudio' or 'llama-bench'.")
+        sys.exit(1)
 
     # Collect system info
     print("Collecting system information...")
@@ -429,6 +712,7 @@ def main():
     print(f"  VRAM: {system_info['gpu']['vram_total_mb']} MB")
     print(f"  CPU: {system_info['cpu']['model']} ({system_info['cpu']['cores']} cores)")
     print(f"  RAM: {system_info['ram_gb']} GB")
+    print(f"  Engine: {engine}")
     print()
 
     # Build run list
@@ -437,45 +721,73 @@ def main():
         name = model_cfg["name"]
         if args.model and args.model != name:
             continue
-        for quant in model_cfg["quants"]:
-            if args.quant and args.quant != quant:
-                continue
-            runs.append({"name": name, "repo": model_cfg["repo"], "quant": quant})
+
+        if engine == "lmstudio":
+            runs.append({
+                "name": name,
+                "lmstudio_id": model_cfg.get("lmstudio_id", name),
+                "params": model_cfg.get("params", ""),
+                "arch": model_cfg.get("arch", ""),
+                "size_gb": model_cfg.get("size_gb", 0),
+            })
+        elif engine == "llama-bench":
+            for quant in model_cfg.get("quants", ["default"]):
+                if args.quant and args.quant != quant:
+                    continue
+                runs.append({
+                    "name": name,
+                    "repo": model_cfg.get("repo", ""),
+                    "quant": quant,
+                })
 
     if not runs:
         print("No matching model/quant combinations found.")
         sys.exit(1)
 
-    print(f"Benchmark plan: {len(runs)} model/quant combinations")
-    print(f"  Runs per combination: {params['n_runs']} (+ 1 warm-up)")
-    print(f"  Prompt tokens: {params['prompt_tokens']}, Generation tokens: {params['generation_tokens']}")
+    print(f"Benchmark plan: {len(runs)} model(s)")
+    print(f"  Runs per model: {params['n_runs']} (+ 1 warm-up)")
+    print(f"  Generation tokens: {params['generation_tokens']}")
     print(f"  Results directory: {results_dir}")
     print()
 
     if args.dry_run:
-        print("Dry run — the following would be executed:\n")
+        print("Dry run — the following would be benchmarked:\n")
         for run in runs:
-            model_path = resolve_model_path(model_dir, run["name"], run["quant"])
-            status = f"found: {model_path}" if model_path else "NOT FOUND"
-            print(f"  {run['name']} @ {run['quant']} — {status}")
+            if engine == "lmstudio":
+                print(f"  {run['name']} ({run['params']}, {run['arch']}) — LM Studio ID: {run['lmstudio_id']}, ~{run['size_gb']} GB")
+            else:
+                model_path = resolve_model_path(config["model_dir"], run["name"], run["quant"])
+                status = f"found: {model_path}" if model_path else "NOT FOUND"
+                print(f"  {run['name']} @ {run['quant']} — {status}")
         sys.exit(0)
+
+    # Ensure all models are unloaded before starting (LM Studio)
+    if engine == "lmstudio":
+        print("Unloading any currently loaded models...")
+        unload_lmstudio_models(config["lmstudio"]["lms_path"])
+        print()
 
     # Execute benchmarks
     all_results = []
     for i, run in enumerate(runs, 1):
-        print(f"[{i}/{len(runs)}] {run['name']} @ {run['quant']}")
-
-        model_path = resolve_model_path(model_dir, run["name"], run["quant"])
-        if model_path is None:
-            print(f"  SKIPPED: Model file not found for {run['name']} {run['quant']}")
-            print(f"  Expected in: {model_dir}")
-            print()
-            continue
-
-        print(f"  Model file: {model_path}")
+        print(f"[{i}/{len(runs)}] {run['name']}")
 
         monitor = NvidiaSmiMonitor(interval_ms=smi_interval)
-        metrics = run_llama_bench(llama_bench_path, model_path, params, monitor)
+
+        if engine == "lmstudio":
+            model_cfg_run = {
+                "lmstudio_id": run["lmstudio_id"],
+                "name": run["name"],
+            }
+            metrics = run_lmstudio_bench(config, model_cfg_run, params, monitor)
+        elif engine == "llama-bench":
+            model_path = resolve_model_path(config["model_dir"], run["name"], run["quant"])
+            if model_path is None:
+                print(f"  SKIPPED: Model file not found for {run['name']} {run['quant']}")
+                print()
+                continue
+            print(f"  Model file: {model_path}")
+            metrics = run_llama_bench(config["llama_bench_path"], model_path, params, monitor)
 
         if metrics is None:
             print(f"  FAILED: No metrics captured")
@@ -484,21 +796,25 @@ def main():
 
         result = {
             "model": run["name"],
-            "quant": run["quant"],
-            "repo": run["repo"],
+            "params": run.get("params", ""),
+            "arch": run.get("arch", ""),
+            "quant": run.get("quant", "N/A"),
             "system_info": system_info,
             "benchmark_params": params,
+            "engine": engine,
             "metrics": metrics,
         }
 
-        save_result(result, results_dir, run["name"], run["quant"])
+        quant_label = run.get("quant", "default")
+        save_result(result, results_dir, run["name"], quant_label)
         all_results.append(result)
 
         # Print inline summary
         pp = metrics["prompt_eval_tokens_per_s"]
         tg = metrics["generation_tokens_per_s"]
         ttft = metrics["time_to_first_token_s"]
-        print(f"  Prompt eval: {pp['mean']:.1f} +/- {pp['std']:.1f} t/s")
+        if pp["mean"] > 0:
+            print(f"  Prompt eval: {pp['mean']:.1f} +/- {pp['std']:.1f} t/s")
         print(f"  Generation:  {tg['mean']:.1f} +/- {tg['std']:.1f} t/s")
         print(f"  TTFT:        {ttft['mean']:.3f} +/- {ttft['std']:.3f} s")
         if metrics["gpu"].get("peak_vram_mb"):

@@ -3,44 +3,109 @@
 
 hardware_profile: "rtx5090"
 
-# Path to llama.cpp's llama-bench binary (built with CUDA support)
-llama_bench_path: "/usr/local/bin/llama-bench"
+# Engine: "lmstudio" or "llama-bench"
+engine: "lmstudio"
 
-# Directory containing GGUF model files
+# --- LM Studio configuration ---
+lmstudio:
+  api_base: "http://localhost:1234/v1"
+  lms_path: "C:/Users/patri/.lmstudio/bin/lms.exe"
+  load_timeout_s: 120       # Max seconds to wait for model to load
+  gpu_offload: "max"        # "max" for full GPU, "off", or 0.0-1.0
+
+# --- llama-bench configuration (alternative engine) ---
+llama_bench_path: "/usr/local/bin/llama-bench"
 model_dir: "/models"
 
 models:
-  - name: "llama-3.1-8b"
-    repo: "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF"
-    quants: ["Q4_K_M", "Q5_K_M", "Q8_0", "F16"]
+  # --- Small models (< 10 GB) ---
+  - name: "ministral-3-3b"
+    lmstudio_id: "mistralai/ministral-3-3b"
+    params: "3B"
+    arch: "Mistral3"
+    size_gb: 3.0
 
-  - name: "llama-3.1-70b"
-    repo: "bartowski/Meta-Llama-3.1-70B-Instruct-GGUF"
-    quants: ["Q4_K_M"]  # Only Q4 fits in 32GB VRAM
+  - name: "granite-3.2-8b"
+    lmstudio_id: "ibm/granite-3.2-8b"
+    params: "8B"
+    arch: "Granite"
+    size_gb: 4.9
 
-  - name: "mistral-7b-v0.3"
-    repo: "bartowski/Mistral-7B-Instruct-v0.3-GGUF"
-    quants: ["Q4_K_M", "Q8_0"]
+  - name: "qwen3.5-9b"
+    lmstudio_id: "qwen/qwen3.5-9b"
+    params: "9B"
+    arch: "Qwen3.5"
+    size_gb: 6.6
 
   - name: "qwen2.5-7b"
-    repo: "bartowski/Qwen2.5-7B-Instruct-GGUF"
-    quants: ["Q4_K_M", "Q8_0"]
+    lmstudio_id: "berti-qwen2.5-7b"
+    params: "7.6B"
+    arch: "Qwen2"
+    size_gb: 8.1
 
-  - name: "deepseek-r1-distill-llama-8b"
-    repo: "bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF"
-    quants: ["Q4_K_M", "Q8_0"]
+  - name: "llama-3.1-8b"
+    lmstudio_id: "berti-llama-8b"
+    params: "8B"
+    arch: "Llama"
+    size_gb: 8.5
 
-  - name: "phi-4"
-    repo: "bartowski/phi-4-GGUF"
-    quants: ["Q4_K_M", "Q8_0"]
+  # --- Medium models (10-20 GB) ---
+  - name: "gpt-oss-20b"
+    lmstudio_id: "openai/gpt-oss-20b"
+    params: "20B"
+    arch: "GPT-OSS"
+    size_gb: 12.1
+
+  - name: "lfm2-24b-moe"
+    lmstudio_id: "liquid/lfm2-24b-a2b"
+    params: "64x1.3B MoE"
+    arch: "LFM2 MoE"
+    size_gb: 14.4
+
+  - name: "devstral-small-2-24b"
+    lmstudio_id: "devstral-small-2-24b-instruct-2512"
+    params: "24B"
+    arch: "Mistral3"
+    size_gb: 15.2
+
+  - name: "qwen3.5-27b"
+    lmstudio_id: "qwen3.5-27b"
+    params: "27B"
+    arch: "Qwen3.5"
+    size_gb: 17.5
+
+  - name: "glm-4.7-flash"
+    lmstudio_id: "zai-org/glm-4.7-flash"
+    params: "30B"
+    arch: "DeepSeek2"
+    size_gb: 18.1
+
+  # --- Large models (20-32 GB) ---
+  - name: "qwen2.5-coder-32b"
+    lmstudio_id: "qwen/qwen2.5-coder-32b"
+    params: "32B"
+    arch: "Qwen2"
+    size_gb: 19.9
+
+  - name: "qwen3.5-35b-moe"
+    lmstudio_id: "qwen/qwen3.5-35b-a3b"
+    params: "35B-A3B MoE"
+    arch: "Qwen3.5 MoE"
+    size_gb: 22.1
+
+  - name: "nemotron-3-nano"
+    lmstudio_id: "nvidia/nemotron-3-nano"
+    params: "30B MoE"
+    arch: "Nemotron MoE"
+    size_gb: 24.5
 
 benchmark_params:
-  prompt_tokens: 512       # Input prompt length in tokens
+  prompt_tokens: 512       # Target input prompt length in tokens
   generation_tokens: 128   # Number of tokens to generate
   n_runs: 3                # Repetitions per configuration (mean + std dev reported)
-  gpu_layers: -1           # -1 = offload all layers to GPU
+  gpu_layers: -1           # -1 = offload all layers to GPU (llama-bench only)
   context_size: 4096       # Context window size
-  threads: 8               # CPU threads (used for non-offloaded layers)
+  threads: 8               # CPU threads (llama-bench only)
 
 nvidia_smi:
   power_sample_interval_ms: 100  # Power draw sampling interval

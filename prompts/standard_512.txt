@@ -1,0 +1,17 @@
+You are a knowledgeable assistant. Please provide a detailed and thorough response to the following question.
+
+Explain the key differences between transformer-based language models and earlier recurrent neural network architectures for natural language processing. Cover the following aspects in your response:
+
+1. Architecture fundamentals: How does the self-attention mechanism in transformers differ from the sequential processing in RNNs and LSTMs? What are the computational implications of each approach?
+
+2. Training efficiency: Why can transformers be trained more efficiently on modern hardware compared to recurrent models? Discuss parallelisation, gradient flow, and the role of positional encodings as a replacement for implicit sequence ordering.
+
+3. Scaling behaviour: How do transformer models scale with increasing parameter counts and training data? Reference the empirical scaling laws observed in large language models and explain why similar scaling was not achieved with recurrent architectures.
+
+4. Context handling: Compare how transformers and RNNs handle long-range dependencies in text. Discuss the quadratic attention cost in transformers versus the theoretical infinite context of RNNs, and practical solutions like sparse attention, sliding window attention, and linear attention variants.
+
+5. Memory and inference costs: Describe the key-value cache mechanism used during autoregressive generation in transformers. How does this affect memory usage during inference, and what techniques like quantisation, speculative decoding, and paged attention have been developed to address these costs?
+
+6. Real-world deployment: Discuss the practical considerations when deploying transformer models for inference on consumer hardware. Cover topics including model quantisation formats (GGUF, GPTQ, AWQ), GPU memory requirements, the relationship between model size and inference speed, and the role of inference engines like llama.cpp and vLLM.
+
+Please structure your response with clear headings for each section and provide specific examples where relevant. Aim for technical depth while remaining accessible to someone with a general machine learning background.

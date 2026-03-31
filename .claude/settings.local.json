@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader)",
+      "Bash(nvidia-smi --query-gpu=cuda_version --format=csv,noheader)",
+      "Bash(nvidia-smi)",
+      "Bash(\"/c/Users/patri/.lmstudio/bin/lms.exe\" status:*)",
+      "Bash(\"/c/Users/patri/.lmstudio/bin/lms.exe\" server:*)",
+      "Bash(/c/Users/patri/.lmstudio/bin/lms.exe --help)",
+      "Bash(\"/c/Users/patri/.lmstudio/bin/lms.exe\" load:*)",
+      "Bash(nvidia-smi:*)",
+      "Bash(wmic cpu:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(wmic memorychip:*)",
+      "Bash(wmic ComputerSystem get TotalPhysicalMemory /format:list)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_PhysicalMemory | Select-Object Capacity,Speed,ConfiguredClockSpeed | Format-List\" 2>/dev/null)",
+      "Bash(powershell -Command \"\\(Get-CimInstance Win32_ComputerSystem\\).TotalPhysicalMemory / 1GB\" 2>/dev/null)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_PhysicalMemory | Select-Object -First 1 SMBIOSMemoryType | Format-List\" 2>/dev/null)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_DiskDrive | Select-Object Model,MediaType,Size | Format-List\" 2>/dev/null)",
+      "Bash(pip install:*)",
+      "Bash(python run_benchmarks.py --dry-run)",
+      "Bash(python run_benchmarks.py --model ministral-3-3b)",
+      "Read(//c/Users/patri/.ssh/**)",
+      "Bash(ssh-keygen:*)"
+    ]
+  }
+}
