@@ -30,7 +30,7 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 | nemotron-3-nano | 30B MoE | **237.5** | 239.2 | 0.090 | 2.14 | 26.9 GB | 105 W |
 | qwen2.5-coder-32b | 32B | **72.2** | 232.4 | 0.160 | 2.20 | 23.2 GB | 156 W |
 
-*NVIDIA GeForce RTX 5090 — 32607 MB VRAM — Engine: LM Studio*
+*NVIDIA GeForce RTX 5090 â€” 32607 MB VRAM â€” Engine: LM Studio*
 
 ### M2 Mac Studio (MLX)
 
@@ -45,7 +45,7 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 | nemotron-3-nano | 30B MoE | **93.0** | 468.6 | 1.09 | 19.0 GB |
 | qwen2.5-coder-32b | 32B | **18.0** | 126.8 | 4.04 | 19.1 GB |
 
-*Apple M2 Max — 64.0 GB unified memory — Engine: MLX*
+*Apple M2 Max â€” 64.0 GB unified memory â€” Engine: MLX*
 <!-- BENCHMARK_RESULTS_END -->
 
 ## Metrics Captured

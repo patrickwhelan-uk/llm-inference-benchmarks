@@ -32,7 +32,7 @@ def load_results(results_dir):
         # Group by model name, keep latest
         by_model = {}
         for f in json_files:
-            with open(f) as fh:
+            with open(f, encoding="utf-8") as fh:
                 data = json.load(fh)
             model = data["model"]
             # Extract timestamp from filename for dedup
@@ -271,7 +271,7 @@ def generate_markdown_tables(profiles):
 
 def update_readme(readme_path, results_section):
     """Update README between markers, or insert before ## Metrics Captured."""
-    with open(readme_path, "r") as f:
+    with open(readme_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     start_marker = "<!-- BENCHMARK_RESULTS_START -->"
@@ -313,7 +313,7 @@ def update_readme(readme_path, results_section):
             + new_content[insert_point:]
         )
 
-    with open(readme_path, "w") as f:
+    with open(readme_path, "w", encoding="utf-8") as f:
         f.write(new_content)
     print(f"  Updated {readme_path}")
 
