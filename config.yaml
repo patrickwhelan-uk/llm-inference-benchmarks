@@ -68,6 +68,12 @@ models:
     arch: "Mistral3"
     size_gb: 15.2
 
+  - name: "gemma-4-26b-moe"
+    lmstudio_id: "google/gemma-4-26b-a4b"
+    params: "26B-A4B MoE"
+    arch: "Gemma4 MoE"
+    size_gb: 18.0
+
   - name: "qwen3.5-27b"
     lmstudio_id: "qwen3.5-27b"
     params: "27B"

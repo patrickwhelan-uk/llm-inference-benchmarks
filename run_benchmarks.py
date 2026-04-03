@@ -452,7 +452,7 @@ def run_lmstudio_single(api_base: str, model_id: str, prompt: str, max_tokens: i
             continue
 
         delta = choices[0].get("delta", {})
-        content = delta.get("content", "")
+        content = delta.get("content", "") or delta.get("reasoning_content", "")
 
         if content:
             now = time.monotonic()

@@ -26,6 +26,7 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 | qwen3.5-9b | 9B | **169.5** | 239.2 | 0.090 | 2.14 | 10.6 GB | 159 W |
 | gpt-oss-20b | 20B | **260.9** | 225.4 | 0.220 | 2.27 | 15.2 GB | 104 W |
 | devstral-small-2-24b | 24B | **85.8** | 239.8 | 0.080 | 2.14 | 18.6 GB | 226 W |
+| gemma-4-26b-moe | 26B-A4B MoE | **152.8** | 234.1 | 0.140 | 2.19 | 22.2 GB | 119 W |
 | glm-4.7-flash | 30B | **174.2** | 240.9 | 0.070 | 2.12 | 21.1 GB | 111 W |
 | nemotron-3-nano | 30B MoE | **237.5** | 239.2 | 0.090 | 2.14 | 26.9 GB | 105 W |
 | qwen2.5-coder-32b | 32B | **72.2** | 232.4 | 0.160 | 2.20 | 23.2 GB | 156 W |
