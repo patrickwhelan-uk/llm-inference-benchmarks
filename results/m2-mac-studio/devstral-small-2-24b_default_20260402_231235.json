@@ -1,0 +1,74 @@
+{
+  "model": "devstral-small-2-24b",
+  "params": "24B",
+  "arch": "Mistral3",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "Apple M2 Max",
+      "gpu_cores": "30",
+      "metal_support": "N/A",
+      "unified_memory_gb": 64.0
+    },
+    "cpu": {
+      "model": "Apple M2 Max",
+      "cores": 12
+    },
+    "ram_gb": 64.0,
+    "os": {
+      "system": "Darwin",
+      "release": "25.3.0",
+      "version": "Darwin Kernel Version 25.3.0: Wed Jan 28 20:55:08 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T6020"
+    },
+    "python_version": "3.14.3",
+    "timestamp": "2026-04-02T21:00:05.046210+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "mlx",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 104.15,
+      "std": 0.02,
+      "values": [
+        104.13,
+        104.167,
+        104.154
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 24.43,
+      "std": 0.01,
+      "values": [
+        24.434,
+        24.417,
+        24.424
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 4.92,
+      "std": 0.0,
+      "values": [
+        4.916930759627389,
+        4.9151842714103315,
+        4.915797761007739
+      ]
+    },
+    "gpu": {
+      "peak_vram_mb": 14093.3,
+      "mean_power_w": null,
+      "peak_power_w": null,
+      "n_samples": 19859,
+      "note": "unified_memory_system_wide"
+    },
+    "wall_time_s": 2130.12,
+    "engine": "mlx",
+    "raw_output": "Running warmup..\nTiming with prompt_tokens=512, generation_tokens=128, batch_size=1.\nTrial 1:  prompt_tps=104.125, generation_tps=24.402, peak_memory=13.762\nTrial 2:  prompt_tps=104.130, generation_tps=24.434, peak_memory=13.762\nTrial 3:  prompt_tps=104.167, generation_tps=24.417, peak_memory=13.762\nTrial 4:  prompt_tps=104.154, generation_tps=24.424, peak_memory=13.763\nAverages: prompt_tps=104.144, generation_tps=24.419, peak_memory=13.762\n\n\nFetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n\nFetching 10 files:  10%|\u2588         | 1/10 [00:00<00:03,  2.63it/s]\nFetching 10 files:  40%|\u2588\u2588\u2588\u2588      | 4/10 [24:43<40:05, 400.96s/it]\nFetching 10 files:  50%|\u2588\u2588\u2588\u2588\u2588     | 5/10 [34:31<37:45, 453.01s/it]\nFetching 10 files: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [34:31<00:00, 207.15s/it]\nThe tokenizer you are loading from '/Users/patrickwhelan/.cache/huggingface/hub/models--mlx-community--Devstral-Small-2505-4bit/snapshots/91ab74727385430dac575c8b0a27235367870cb6' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.\n"
+  }
+}

@@ -45,8 +45,73 @@ def get_nvidia_smi_field(query_field: str) -> str:
         return "N/A"
 
 
+def get_mac_gpu_info() -> dict:
+    """Get GPU info on macOS via system_profiler."""
+    info = {"name": "N/A", "gpu_cores": "N/A", "metal_support": "N/A", "unified_memory_gb": "N/A"}
+    try:
+        result = subprocess.run(
+            ["system_profiler", "SPDisplaysDataType", "-json"],
+            capture_output=True, text=True, timeout=10,
+        )
+        data = json.loads(result.stdout)
+        displays = data.get("SPDisplaysDataType", [])
+        if displays:
+            gpu = displays[0]
+            info["name"] = gpu.get("sppci_model", "N/A")
+            cores = gpu.get("sppci_cores", gpu.get("gpu_cores", "N/A"))
+            info["gpu_cores"] = cores
+            info["metal_support"] = gpu.get("spdisplays_metal", gpu.get("metal_support", "N/A"))
+    except Exception:
+        pass
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True, text=True, timeout=10,
+        )
+        info["unified_memory_gb"] = round(int(result.stdout.strip()) / 1024**3, 1)
+    except Exception:
+        pass
+    return info
+
+
 def get_system_info() -> dict:
     """Collect system information for reproducibility."""
+    is_mac = platform.system() == "Darwin"
+
+    if is_mac:
+        mac_gpu = get_mac_gpu_info()
+        info = {
+            "gpu": {
+                "name": mac_gpu["name"],
+                "gpu_cores": mac_gpu["gpu_cores"],
+                "metal_support": mac_gpu["metal_support"],
+                "unified_memory_gb": mac_gpu["unified_memory_gb"],
+            },
+            "cpu": {
+                "model": "N/A",
+                "cores": os.cpu_count(),
+            },
+            "ram_gb": mac_gpu["unified_memory_gb"],
+            "os": {
+                "system": platform.system(),
+                "release": platform.release(),
+                "version": platform.version(),
+            },
+            "python_version": platform.python_version(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        # CPU brand on macOS
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                info["cpu"]["model"] = result.stdout.strip()
+        except Exception:
+            pass
+        return info
+
     info = {
         "gpu": {
             "name": get_nvidia_smi_field("name"),
@@ -88,12 +153,6 @@ def get_system_info() -> dict:
                         kb = int(line.split()[1])
                         info["ram_gb"] = round(kb / 1024 / 1024, 1)
                         break
-        elif platform.system() == "Darwin":
-            result = subprocess.run(
-                ["sysctl", "-n", "hw.memsize"],
-                capture_output=True, text=True, timeout=10,
-            )
-            info["ram_gb"] = round(int(result.stdout.strip()) / 1024**3, 1)
         elif platform.system() == "Windows":
             result = subprocess.run(
                 ["powershell", "-Command",
@@ -167,6 +226,82 @@ class NvidiaSmiMonitor:
             "peak_power_w": max(power_values),
             "n_samples": len(self.samples),
         }
+
+
+class MacResourceMonitor:
+    """Polls vm_stat on macOS for system memory usage (unified memory)."""
+
+    def __init__(self, interval_ms: int = 100):
+        self.interval_s = interval_ms / 1000.0
+        self.samples: list[dict] = []
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._page_size = 16384  # default for Apple Silicon
+
+    def start(self):
+        self.samples = []
+        self._stop_event.clear()
+        # Detect page size
+        try:
+            result = subprocess.run(
+                ["pagesize"], capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                self._page_size = int(result.stdout.strip())
+        except Exception:
+            pass
+        self._thread = threading.Thread(target=self._poll, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+
+    def _poll(self):
+        while not self._stop_event.is_set():
+            try:
+                result = subprocess.run(
+                    ["vm_stat"], capture_output=True, text=True, timeout=5,
+                )
+                if result.returncode == 0:
+                    active = wired = 0
+                    for line in result.stdout.splitlines():
+                        if "Pages active:" in line:
+                            active = int(line.split(":")[1].strip().rstrip("."))
+                        elif "Pages wired down:" in line:
+                            wired = int(line.split(":")[1].strip().rstrip("."))
+                    used_mb = (active + wired) * self._page_size / (1024 * 1024)
+                    self.samples.append({
+                        "timestamp": time.monotonic(),
+                        "memory_used_mb": round(used_mb, 1),
+                    })
+            except Exception:
+                pass
+            self._stop_event.wait(self.interval_s)
+
+    def get_summary(self) -> dict:
+        if not self.samples:
+            return {
+                "peak_vram_mb": None, "mean_power_w": None, "peak_power_w": None,
+                "note": "unified_memory_system_wide",
+            }
+        mem_values = [s["memory_used_mb"] for s in self.samples]
+        return {
+            "peak_vram_mb": round(max(mem_values), 1),
+            "mean_power_w": None,
+            "peak_power_w": None,
+            "n_samples": len(self.samples),
+            "note": "unified_memory_system_wide",
+        }
+
+
+def create_monitor(config: dict):
+    """Factory: returns MacResourceMonitor on macOS, NvidiaSmiMonitor otherwise."""
+    interval = config.get("nvidia_smi", {}).get("power_sample_interval_ms", 100)
+    if platform.system() == "Darwin":
+        return MacResourceMonitor(interval_ms=interval)
+    return NvidiaSmiMonitor(interval_ms=interval)
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +580,119 @@ def run_lmstudio_bench(
 
 
 # ---------------------------------------------------------------------------
+# mlx engine (mlx_lm benchmark CLI)
+# ---------------------------------------------------------------------------
+
+def parse_mlx_bench_output(output: str) -> dict | None:
+    """Parse mlx_lm benchmark output into structured metrics.
+
+    Expected format:
+        Trial 1:  prompt_tps=1019.002, generation_tps=67.070, peak_memory=2.493
+        Averages: prompt_tps=1043.604, generation_tps=68.918, peak_memory=2.493
+    """
+    trials = []
+    pattern = re.compile(
+        r"Trial\s+\d+:\s+prompt_tps=([\d.]+),\s+generation_tps=([\d.]+),\s+peak_memory=([\d.]+)"
+    )
+    for match in pattern.finditer(output):
+        trials.append({
+            "prompt_tps": float(match.group(1)),
+            "generation_tps": float(match.group(2)),
+            "peak_memory_gb": float(match.group(3)),
+        })
+
+    if not trials:
+        return None
+
+    return {"trials": trials}
+
+
+def run_mlx_bench(
+    mlx_python: str,
+    model_id: str,
+    params: dict,
+    monitor,
+) -> dict | None:
+    """Execute mlx_lm benchmark and return parsed metrics with resource telemetry."""
+
+    cmd = [
+        mlx_python, "-m", "mlx_lm", "benchmark",
+        "--model", model_id,
+        "--prompt-tokens", str(params["prompt_tokens"]),
+        "--generation-tokens", str(params["generation_tokens"]),
+        "--num-trials", str(params["n_runs"] + 1),  # +1 for warm-up (mlx_lm does its own warmup, but we add 1 extra for consistency)
+    ]
+
+    print(f"  Command: {' '.join(cmd)}")
+
+    monitor.start()
+    start_time = time.monotonic()
+
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=3600,
+        )
+    except subprocess.TimeoutExpired:
+        print("  ERROR: mlx_lm benchmark timed out after 1 hour")
+        monitor.stop()
+        return None
+    except FileNotFoundError:
+        print(f"  ERROR: Python not found at {mlx_python}")
+        monitor.stop()
+        return None
+
+    elapsed = time.monotonic() - start_time
+    monitor.stop()
+
+    if result.returncode != 0:
+        print(f"  ERROR: mlx_lm benchmark exited with code {result.returncode}")
+        print(f"  stderr: {result.stderr[:500]}")
+        return None
+
+    print(f"  Completed in {elapsed:.1f}s")
+
+    # Combine stdout and stderr for parsing (mlx_lm may print to either)
+    full_output = result.stdout + "\n" + result.stderr
+    metrics = parse_mlx_bench_output(full_output)
+    if metrics is None:
+        print("  WARNING: Could not parse mlx_lm benchmark output")
+        print(f"  stdout: {result.stdout[:500]}")
+        return None
+
+    trials = metrics["trials"]
+
+    # Discard the first trial (warm-up) — mlx_lm also does its own internal
+    # warmup, but we added +1 trial for consistency with other engines
+    if len(trials) > params["n_runs"]:
+        trials = trials[1:]
+
+    pp_values = [t["prompt_tps"] for t in trials]
+    tg_values = [t["generation_tps"] for t in trials]
+    peak_mem = max(t["peak_memory_gb"] for t in trials)
+
+    # TTFT = prompt_tokens / prompt_tps
+    ttft_values = [params["prompt_tokens"] / pp for pp in pp_values]
+
+    pp_stats = compute_stats(pp_values)
+    tg_stats = compute_stats(tg_values)
+    ttft_stats = compute_stats(ttft_values)
+
+    resource_summary = monitor.get_summary()
+    # Override peak memory with mlx_lm's more accurate per-process measurement
+    resource_summary["peak_vram_mb"] = round(peak_mem * 1024, 1)
+
+    return {
+        "prompt_eval_tokens_per_s": pp_stats,
+        "generation_tokens_per_s": tg_stats,
+        "time_to_first_token_s": ttft_stats,
+        "gpu": resource_summary,
+        "wall_time_s": round(elapsed, 2),
+        "engine": "mlx",
+        "raw_output": full_output,
+    }
+
+
+# ---------------------------------------------------------------------------
 # llama-bench engine (original)
 # ---------------------------------------------------------------------------
 
@@ -701,15 +949,36 @@ def main():
                 print(f"  Ensure LM Studio is running with the server enabled.")
                 print(f"  Detail: {e}")
                 sys.exit(1)
+    elif engine == "mlx":
+        mlx_cfg = config.get("mlx", {})
+        mlx_python = mlx_cfg.get("python_path", "python3")
+        if not args.dry_run:
+            try:
+                result = subprocess.run(
+                    [mlx_python, "-c", "import mlx_lm; print(mlx_lm.__version__)"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode != 0:
+                    print(f"ERROR: mlx_lm not available via '{mlx_python}'")
+                    print(f"  Install with: pip install mlx-lm")
+                    sys.exit(1)
+                print(f"mlx_lm: OK (version {result.stdout.strip()})")
+            except FileNotFoundError:
+                print(f"ERROR: Python not found at '{mlx_python}'")
+                sys.exit(1)
     else:
-        print(f"ERROR: Unknown engine '{engine}'. Use 'lmstudio' or 'llama-bench'.")
+        print(f"ERROR: Unknown engine '{engine}'. Use 'lmstudio', 'llama-bench', or 'mlx'.")
         sys.exit(1)
 
     # Collect system info
     print("Collecting system information...")
     system_info = get_system_info()
     print(f"  GPU: {system_info['gpu']['name']}")
-    print(f"  VRAM: {system_info['gpu']['vram_total_mb']} MB")
+    if "vram_total_mb" in system_info["gpu"]:
+        print(f"  VRAM: {system_info['gpu']['vram_total_mb']} MB")
+    elif "unified_memory_gb" in system_info["gpu"]:
+        print(f"  Unified Memory: {system_info['gpu']['unified_memory_gb']} GB")
+        print(f"  GPU Cores: {system_info['gpu'].get('gpu_cores', 'N/A')}")
     print(f"  CPU: {system_info['cpu']['model']} ({system_info['cpu']['cores']} cores)")
     print(f"  RAM: {system_info['ram_gb']} GB")
     print(f"  Engine: {engine}")
@@ -726,6 +995,14 @@ def main():
             runs.append({
                 "name": name,
                 "lmstudio_id": model_cfg.get("lmstudio_id", name),
+                "params": model_cfg.get("params", ""),
+                "arch": model_cfg.get("arch", ""),
+                "size_gb": model_cfg.get("size_gb", 0),
+            })
+        elif engine == "mlx":
+            runs.append({
+                "name": name,
+                "mlx_model_id": model_cfg.get("mlx_model_id", name),
                 "params": model_cfg.get("params", ""),
                 "arch": model_cfg.get("arch", ""),
                 "size_gb": model_cfg.get("size_gb", 0),
@@ -755,6 +1032,8 @@ def main():
         for run in runs:
             if engine == "lmstudio":
                 print(f"  {run['name']} ({run['params']}, {run['arch']}) — LM Studio ID: {run['lmstudio_id']}, ~{run['size_gb']} GB")
+            elif engine == "mlx":
+                print(f"  {run['name']} ({run['params']}, {run['arch']}) — MLX model: {run['mlx_model_id']}, ~{run['size_gb']} GB")
             else:
                 model_path = resolve_model_path(config["model_dir"], run["name"], run["quant"])
                 status = f"found: {model_path}" if model_path else "NOT FOUND"
@@ -772,7 +1051,7 @@ def main():
     for i, run in enumerate(runs, 1):
         print(f"[{i}/{len(runs)}] {run['name']}")
 
-        monitor = NvidiaSmiMonitor(interval_ms=smi_interval)
+        monitor = create_monitor(config)
 
         if engine == "lmstudio":
             model_cfg_run = {
@@ -780,6 +1059,10 @@ def main():
                 "name": run["name"],
             }
             metrics = run_lmstudio_bench(config, model_cfg_run, params, monitor)
+        elif engine == "mlx":
+            mlx_cfg = config.get("mlx", {})
+            mlx_python = mlx_cfg.get("python_path", "python3")
+            metrics = run_mlx_bench(mlx_python, run["mlx_model_id"], params, monitor)
         elif engine == "llama-bench":
             model_path = resolve_model_path(config["model_dir"], run["name"], run["quant"])
             if model_path is None:

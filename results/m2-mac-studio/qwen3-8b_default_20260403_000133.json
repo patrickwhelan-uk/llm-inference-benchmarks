@@ -1,0 +1,74 @@
+{
+  "model": "qwen3-8b",
+  "params": "8B",
+  "arch": "Qwen3",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "Apple M2 Max",
+      "gpu_cores": "30",
+      "metal_support": "N/A",
+      "unified_memory_gb": 64.0
+    },
+    "cpu": {
+      "model": "Apple M2 Max",
+      "cores": 12
+    },
+    "ram_gb": 64.0,
+    "os": {
+      "system": "Darwin",
+      "release": "25.3.0",
+      "version": "Darwin Kernel Version 25.3.0: Wed Jan 28 20:55:08 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T6020"
+    },
+    "python_version": "3.14.3",
+    "timestamp": "2026-04-02T23:01:10.630994+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "mlx",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 326.54,
+      "std": 0.13,
+      "values": [
+        326.524,
+        326.677,
+        326.415
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 64.0,
+      "std": 0.05,
+      "values": [
+        63.948,
+        64.023,
+        64.037
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 1.57,
+      "std": 0.0,
+      "values": [
+        1.568031752642991,
+        1.5672973610018457,
+        1.568555366634499
+      ]
+    },
+    "gpu": {
+      "peak_vram_mb": 5343.2,
+      "mean_power_w": null,
+      "peak_power_w": null,
+      "n_samples": 215,
+      "note": "unified_memory_system_wide"
+    },
+    "wall_time_s": 23.28,
+    "engine": "mlx",
+    "raw_output": "Running warmup..\nTiming with prompt_tokens=512, generation_tokens=128, batch_size=1.\nTrial 1:  prompt_tps=326.791, generation_tps=64.048, peak_memory=5.217\nTrial 2:  prompt_tps=326.524, generation_tps=63.948, peak_memory=5.217\nTrial 3:  prompt_tps=326.677, generation_tps=64.023, peak_memory=5.217\nTrial 4:  prompt_tps=326.415, generation_tps=64.037, peak_memory=5.218\nAverages: prompt_tps=326.602, generation_tps=64.014, peak_memory=5.217\n\n\nFetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]\nFetching 9 files: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 9/9 [00:00<00:00, 91846.07it/s]\n"
+  }
+}

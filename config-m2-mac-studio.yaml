@@ -1,0 +1,74 @@
+# LLM Inference Benchmark Configuration — M2 Mac Studio
+# See docs/methodology.md for details on each parameter.
+
+hardware_profile: "m2-mac-studio"
+
+# Engine: "mlx" uses mlx_lm benchmark CLI (direct measurement, no server needed)
+engine: "mlx"
+
+# --- MLX configuration ---
+mlx:
+  python_path: "/Users/patrickwhelan/py-scripts/ai-gateway/vllm-env/bin/python"
+
+models:
+  # --- Small models (< 10 GB) ---
+  - name: "qwen3-8b"
+    mlx_model_id: "mlx-community/Qwen3-8B-4bit"
+    params: "8B"
+    arch: "Qwen3"
+    size_gb: 5.0
+
+  - name: "qwen2.5-7b"
+    mlx_model_id: "mlx-community/Qwen2.5-7B-Instruct-4bit"
+    params: "7.6B"
+    arch: "Qwen2"
+    size_gb: 5.0
+
+  - name: "llama-3.1-8b"
+    mlx_model_id: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
+    params: "8B"
+    arch: "Llama"
+    size_gb: 5.0
+
+  # --- Medium models (10-20 GB) ---
+  - name: "gpt-oss-20b"
+    mlx_model_id: "mlx-community/gpt-oss-20b-MXFP4-Q4"
+    params: "20B"
+    arch: "GPT-OSS"
+    size_gb: 12.0
+
+  - name: "devstral-small-2-24b"
+    mlx_model_id: "mlx-community/Devstral-Small-2505-4bit"
+    params: "24B"
+    arch: "Mistral3"
+    size_gb: 15.0
+
+  - name: "glm-4.7-flash"
+    mlx_model_id: "mlx-community/GLM-4.7-Flash-4bit"
+    params: "30B"
+    arch: "DeepSeek2"
+    size_gb: 18.0
+
+  # --- Large models (20-32 GB) ---
+  - name: "qwen2.5-coder-32b"
+    mlx_model_id: "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit"
+    params: "32B"
+    arch: "Qwen2"
+    size_gb: 20.0
+
+  - name: "nemotron-3-nano"
+    mlx_model_id: "mlx-community/NVIDIA-Nemotron-3-Nano-30B-A3B-4bit"
+    params: "30B MoE"
+    arch: "Nemotron MoE"
+    size_gb: 24.0
+
+benchmark_params:
+  prompt_tokens: 512       # Target input prompt length in tokens
+  generation_tokens: 128   # Number of tokens to generate
+  n_runs: 3                # Repetitions per configuration (mean + std dev reported)
+  gpu_layers: -1           # Not used for mlx engine, kept for schema consistency
+  context_size: 4096       # Not used for mlx engine, kept for schema consistency
+  threads: 8               # Not used for mlx engine, kept for schema consistency
+
+nvidia_smi:
+  power_sample_interval_ms: 100  # Memory sampling interval (vm_stat on macOS)

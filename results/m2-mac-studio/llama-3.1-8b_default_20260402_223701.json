@@ -1,0 +1,74 @@
+{
+  "model": "llama-3.1-8b",
+  "params": "8B",
+  "arch": "Llama",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "Apple M2 Max",
+      "gpu_cores": "30",
+      "metal_support": "N/A",
+      "unified_memory_gb": 64.0
+    },
+    "cpu": {
+      "model": "Apple M2 Max",
+      "cores": 12
+    },
+    "ram_gb": 64.0,
+    "os": {
+      "system": "Darwin",
+      "release": "25.3.0",
+      "version": "Darwin Kernel Version 25.3.0: Wed Jan 28 20:55:08 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T6020"
+    },
+    "python_version": "3.14.3",
+    "timestamp": "2026-04-02T21:00:05.046210+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "mlx",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 566.4,
+      "std": 0.57,
+      "values": [
+        566.388,
+        565.835,
+        566.968
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 72.94,
+      "std": 0.17,
+      "values": [
+        73.024,
+        73.052,
+        72.745
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 0.9,
+      "std": 0.0,
+      "values": [
+        0.9039739542504431,
+        0.9048574231003738,
+        0.9030492020713692
+      ]
+    },
+    "gpu": {
+      "peak_vram_mb": 5238.8,
+      "mean_power_w": null,
+      "peak_power_w": null,
+      "n_samples": 6755,
+      "note": "unified_memory_system_wide"
+    },
+    "wall_time_s": 721.82,
+    "engine": "mlx",
+    "raw_output": "Running warmup..\nTiming with prompt_tokens=512, generation_tokens=128, batch_size=1.\nTrial 1:  prompt_tps=566.197, generation_tps=73.097, peak_memory=5.115\nTrial 2:  prompt_tps=566.388, generation_tps=73.024, peak_memory=5.115\nTrial 3:  prompt_tps=565.835, generation_tps=73.052, peak_memory=5.115\nTrial 4:  prompt_tps=566.968, generation_tps=72.745, peak_memory=5.116\nAverages: prompt_tps=566.347, generation_tps=72.980, peak_memory=5.115\n\n\nFetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n\nFetching 6 files:  17%|\u2588\u258b        | 1/6 [00:00<00:04,  1.06it/s]\nFetching 6 files:  33%|\u2588\u2588\u2588\u258e      | 2/6 [11:44<27:36, 414.09s/it]\nFetching 6 files: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 6/6 [11:44<00:00, 117.37s/it]\n"
+  }
+}
