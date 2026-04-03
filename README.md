@@ -17,20 +17,20 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 
 ### RTX 5090 (LM Studio)
 
-| Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT (s) | Peak VRAM | Avg Power |
-|-------|--------|------------------:|------------------:|---------:|-----------:|----------:|
-| ministral-3-3b | 3B | **265.2** | 242.7 | 2.11 | 6.1 GB | 111 W |
-| qwen2.5-7b | 7.6B | **145.1** | 238.6 | 2.15 | 10.1 GB | 143 W |
-| granite-3.2-8b | 8B | **189.3** | 240.4 | 2.13 | 7.9 GB | 148 W |
-| llama-3.1-8b | 8B | **135.7** | 240.9 | 2.13 | 10.7 GB | 145 W |
-| qwen3.5-9b | 9B | **170.9** | 237.4 | 2.16 | 9.2 GB | 140 W |
-| gpt-oss-20b | 20B | **260.5** | 225.0 | 2.28 | 13.8 GB | 97 W |
-| devstral-small-2-24b | 24B | **86.2** | 240.3 | 2.13 | 17.3 GB | 223 W |
-| nemotron-3-nano | 30B MoE | **247.3** | 239.2 | 2.14 | 25.6 GB | 110 W |
-| glm-4.7-flash | 30B | **174.3** | 239.2 | 2.14 | 19.8 GB | 112 W |
-| qwen2.5-coder-32b | 32B | **70.9** | 233.0 | 2.20 | 21.9 GB | 156 W |
+| Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT Server (s) | TTFT Total (s) | Peak VRAM | Avg Power |
+|-------|--------|------------------:|------------------:|----------------:|---------------:|-----------:|----------:|
+| ministral-3-3b | 3B | **265.2** | 243.9 | 0.060 | 2.10 | 7.4 GB | 119 W |
+| qwen2.5-7b | 7.6B | **145.6** | 242.7 | 0.060 | 2.11 | 11.4 GB | 146 W |
+| granite-3.2-8b | 8B | **188.3** | 240.3 | 0.080 | 2.13 | 9.3 GB | 160 W |
+| llama-3.1-8b | 8B | **140.4** | 238.1 | 0.080 | 2.15 | 12.1 GB | 146 W |
+| qwen3.5-9b | 9B | **169.5** | 239.2 | 0.090 | 2.14 | 10.6 GB | 159 W |
+| gpt-oss-20b | 20B | **260.9** | 225.4 | 0.220 | 2.27 | 15.2 GB | 104 W |
+| devstral-small-2-24b | 24B | **85.8** | 239.8 | 0.080 | 2.14 | 18.6 GB | 226 W |
+| glm-4.7-flash | 30B | **174.2** | 240.9 | 0.070 | 2.12 | 21.1 GB | 111 W |
+| nemotron-3-nano | 30B MoE | **237.5** | 239.2 | 0.090 | 2.14 | 26.9 GB | 105 W |
+| qwen2.5-coder-32b | 32B | **72.2** | 232.4 | 0.160 | 2.20 | 23.2 GB | 156 W |
 
-*NVIDIA GeForce RTX 5090 â€” 32607 MB VRAM â€” Engine: LM Studio*
+*NVIDIA GeForce RTX 5090 — 32607 MB VRAM — Engine: LM Studio*
 
 ### M2 Mac Studio (MLX)
 
@@ -41,11 +41,11 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 | qwen3-8b | 8B | **64.0** | 326.5 | 1.57 | 5.2 GB |
 | gpt-oss-20b | 20B | **85.5** | 501.5 | 1.02 | 11.7 GB |
 | devstral-small-2-24b | 24B | **24.4** | 104.2 | 4.92 | 13.8 GB |
-| nemotron-3-nano | 30B MoE | **93.0** | 468.6 | 1.09 | 19.0 GB |
 | glm-4.7-flash | 30B | **52.6** | 413.7 | 1.24 | 17.5 GB |
+| nemotron-3-nano | 30B MoE | **93.0** | 468.6 | 1.09 | 19.0 GB |
 | qwen2.5-coder-32b | 32B | **18.0** | 126.8 | 4.04 | 19.1 GB |
 
-*Apple M2 Max â€” 64.0 GB unified memory â€” Engine: MLX*
+*Apple M2 Max — 64.0 GB unified memory — Engine: MLX*
 <!-- BENCHMARK_RESULTS_END -->
 
 ## Metrics Captured

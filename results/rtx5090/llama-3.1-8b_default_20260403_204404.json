@@ -1,0 +1,121 @@
+{
+  "model": "llama-3.1-8b",
+  "params": "8B",
+  "arch": "Llama",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 5090",
+      "vram_total_mb": "32607",
+      "driver_version": "595.97",
+      "cuda_version": "13.2"
+    },
+    "cpu": {
+      "model": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+      "cores": 32
+    },
+    "ram_gb": 191.7,
+    "os": {
+      "system": "Windows",
+      "release": "10",
+      "version": "10.0.26200"
+    },
+    "python_version": "3.10.11",
+    "timestamp": "2026-04-03T19:42:20.739863+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "lmstudio",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 238.05,
+      "std": 2.65,
+      "values": [
+        240.94117647058823,
+        235.7274401473269,
+        237.47680890538595
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 140.43,
+      "std": 4.2,
+      "values": [
+        135.57483731019147,
+        142.85714285714286,
+        142.85714285714286
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 2.15,
+      "std": 0.02,
+      "values": [
+        2.125,
+        2.1720000000000255,
+        2.155999999999949
+      ]
+    },
+    "server_ttft_s": {
+      "mean": 0.08,
+      "std": 0.01,
+      "values": [
+        0.07799999999997453,
+        0.09400000000005093,
+        0.07799999999997453
+      ]
+    },
+    "http_overhead_s": {
+      "mean": 2.07,
+      "std": 0.02,
+      "values": [
+        2.0470000000000255,
+        2.0779999999999745,
+        2.0779999999999745
+      ]
+    },
+    "calibration": {
+      "ttft_s": 2.1410000000000764,
+      "http_overhead_s": 2.063000000000102,
+      "server_ttft_s": 0.07799999999997453
+    },
+    "gpu": {
+      "peak_vram_mb": 12399.0,
+      "mean_power_w": 145.8,
+      "peak_power_w": 366.2,
+      "n_samples": 87
+    },
+    "wall_time_s": 12.31,
+    "engine": "lmstudio",
+    "runs": [
+      {
+        "ttft_s": 2.125,
+        "http_overhead_s": 2.047,
+        "server_ttft_s": 0.078,
+        "generation_s": 0.922,
+        "prompt_tokens": 0,
+        "completion_tokens": 125
+      },
+      {
+        "ttft_s": 2.172,
+        "http_overhead_s": 2.078,
+        "server_ttft_s": 0.094,
+        "generation_s": 0.875,
+        "prompt_tokens": 0,
+        "completion_tokens": 125
+      },
+      {
+        "ttft_s": 2.156,
+        "http_overhead_s": 2.078,
+        "server_ttft_s": 0.078,
+        "generation_s": 0.875,
+        "prompt_tokens": 0,
+        "completion_tokens": 125
+      }
+    ]
+  }
+}

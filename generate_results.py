@@ -116,7 +116,11 @@ def generate_throughput_chart(profiles, output_path):
 
 
 def generate_ttft_chart(profiles, output_path):
-    """Generate horizontal grouped bar chart of TTFT."""
+    """Generate horizontal grouped bar chart of TTFT.
+
+    Uses server_ttft_s (model-dependent latency) when available, falling back
+    to time_to_first_token_s for older results.
+    """
     models_sorted = _all_models_sorted(profiles)
     ordered_profiles = [p for p in PROFILE_ORDER if p in profiles]
 
@@ -128,6 +132,8 @@ def generate_ttft_chart(profiles, output_path):
 
     y_positions = np.arange(n_models)
 
+    has_server_ttft = False  # track if any profile has decomposed TTFT
+
     for i, profile in enumerate(ordered_profiles):
         style = PROFILE_STYLES.get(profile, {"label": profile, "color": "#888888"})
         profile_data = profiles[profile]
@@ -136,8 +142,14 @@ def generate_ttft_chart(profiles, output_path):
         for j, (model_name, _) in enumerate(models_sorted):
             if model_name in profile_data:
                 m = profile_data[model_name]["metrics"]
-                vals.append(m["time_to_first_token_s"]["mean"])
-                errs.append(m["time_to_first_token_s"]["std"])
+                # Prefer server_ttft_s (excludes HTTP overhead) when available
+                if "server_ttft_s" in m and m["server_ttft_s"].get("mean") is not None:
+                    vals.append(m["server_ttft_s"]["mean"])
+                    errs.append(m["server_ttft_s"]["std"])
+                    has_server_ttft = True
+                else:
+                    vals.append(m["time_to_first_token_s"]["mean"])
+                    errs.append(m["time_to_first_token_s"]["std"])
                 offset = (i - (n_profiles - 1) / 2) * bar_height
                 positions.append(y_positions[j] + offset)
 
@@ -156,20 +168,20 @@ def generate_ttft_chart(profiles, output_path):
     labels = [f"{name} ({params})" for name, params in models_sorted]
     ax.set_yticks(y_positions)
     ax.set_yticklabels(labels, fontsize=9)
-    ax.set_xlabel("Time to First Token (seconds) — lower is better", fontsize=10)
-    ax.set_title("Time to First Token Comparison", fontsize=12, fontweight="bold", pad=12)
+
+    if has_server_ttft:
+        ax.set_xlabel("Server TTFT (seconds, excludes API overhead) — lower is better", fontsize=10)
+        ax.set_title("Time to First Token — Server Latency", fontsize=12, fontweight="bold", pad=12)
+    else:
+        ax.set_xlabel("Time to First Token (seconds) — lower is better", fontsize=10)
+        ax.set_title("Time to First Token Comparison", fontsize=12, fontweight="bold", pad=12)
+
     ax.legend(loc="lower right", fontsize=9)
     ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
     ax.grid(axis="x", alpha=0.3, linestyle="--")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.set_xlim(left=0)
-
-    ax.annotate(
-        "* RTX 5090 TTFT includes ~2s LM Studio model-loading overhead",
-        xy=(0.5, -0.08), xycoords="axes fraction",
-        fontsize=8, color="#666666", ha="center", style="italic",
-    )
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -199,9 +211,18 @@ def generate_markdown_tables(profiles):
         models = sorted(data.items(), key=lambda x: parse_params_for_sort(x[1]["params"]))
 
         mem_label = "Peak Memory" if is_apple else "Peak VRAM"
+        # Check if any model in this profile has decomposed TTFT
+        has_server_ttft = any(
+            "server_ttft_s" in d["metrics"] and d["metrics"]["server_ttft_s"].get("mean") is not None
+            for _, d in models
+        )
+
         if is_apple:
             header = f"| Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT (s) | {mem_label} |"
             sep = "|-------|--------|------------------:|------------------:|---------:|-----------:|"
+        elif has_server_ttft:
+            header = f"| Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT Server (s) | TTFT Total (s) | {mem_label} | Avg Power |"
+            sep = "|-------|--------|------------------:|------------------:|----------------:|---------------:|-----------:|----------:|"
         else:
             header = f"| Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT (s) | {mem_label} | Avg Power |"
             sep = "|-------|--------|------------------:|------------------:|---------:|-----------:|----------:|"
@@ -212,6 +233,7 @@ def generate_markdown_tables(profiles):
             gen = m["generation_tokens_per_s"]["mean"]
             pp = m["prompt_eval_tokens_per_s"]["mean"]
             ttft = m["time_to_first_token_s"]["mean"]
+            server_ttft = m.get("server_ttft_s", {}).get("mean")
             gpu = m.get("gpu", {})
             vram = _format_vram(gpu.get("peak_vram_mb"), profile)
             power = gpu.get("mean_power_w")
@@ -219,6 +241,12 @@ def generate_markdown_tables(profiles):
             if is_apple:
                 rows.append(
                     f"| {model_name} | {d['params']} | **{gen:.1f}** | {pp:.1f} | {ttft:.2f} | {vram} |"
+                )
+            elif has_server_ttft:
+                power_str = f"{power:.0f} W" if power is not None else "N/A"
+                server_ttft_str = f"{server_ttft:.3f}" if server_ttft is not None else "N/A"
+                rows.append(
+                    f"| {model_name} | {d['params']} | **{gen:.1f}** | {pp:.1f} | {server_ttft_str} | {ttft:.2f} | {vram} | {power_str} |"
                 )
             else:
                 power_str = f"{power:.0f} W" if power is not None else "N/A"

@@ -414,9 +414,13 @@ def run_lmstudio_single(api_base: str, model_id: str, prompt: str, max_tokens: i
         start_time = time.monotonic()
         response = requests.post(url, json=payload, stream=True, timeout=600)
         response.raise_for_status()
+        headers_time = time.monotonic()  # HTTP 200 received, before SSE streaming
     except requests.RequestException as e:
         print(f"  ERROR: API request failed: {e}")
         return None
+
+    # Check for server-side timing headers (opportunistic)
+    server_timing = response.headers.get("X-Process-Time") or response.headers.get("Server-Timing")
 
     first_token_time = None
     last_token_time = None
@@ -463,6 +467,8 @@ def run_lmstudio_single(api_base: str, model_id: str, prompt: str, max_tokens: i
         return None
 
     ttft_s = first_token_time - start_time
+    http_overhead_s = headers_time - start_time
+    server_ttft_s = first_token_time - headers_time
 
     # Use API-reported token count if available, otherwise use chunk count
     if completion_tokens > 0:
@@ -478,6 +484,9 @@ def run_lmstudio_single(api_base: str, model_id: str, prompt: str, max_tokens: i
 
     return {
         "ttft_s": ttft_s,
+        "http_overhead_s": http_overhead_s,
+        "server_ttft_s": server_ttft_s,
+        "server_timing_header": server_timing,
         "generation_s": generation_s,
         "prompt_tokens": prompt_tokens,
         "completion_tokens": actual_completion,
@@ -508,6 +517,20 @@ def run_lmstudio_bench(
     # Read prompt
     prompt = read_prompt_file()
 
+    # Calibration run: minimal request to measure fixed API overhead
+    print(f"  [calibration] ", end="", flush=True)
+    cal_result = run_lmstudio_single(api_base, model_id, "Hi", 2)
+    if cal_result:
+        print(f"overhead={cal_result['ttft_s']:.3f}s (http={cal_result['http_overhead_s']:.3f}s, server={cal_result['server_ttft_s']:.3f}s)")
+        calibration_ttft_s = cal_result["ttft_s"]
+        calibration_http_s = cal_result["http_overhead_s"]
+        calibration_server_s = cal_result["server_ttft_s"]
+    else:
+        print("FAILED (continuing without calibration)")
+        calibration_ttft_s = None
+        calibration_http_s = None
+        calibration_server_s = None
+
     n_total = params["n_runs"] + 1  # +1 for warm-up
     print(f"  Running {n_total} iterations ({params['n_runs']} measured + 1 warm-up)")
 
@@ -525,7 +548,7 @@ def run_lmstudio_bench(
             continue
 
         tg_speed = result["completion_tokens"] / result["generation_s"] if result["generation_s"] > 0 else 0
-        print(f"TTFT={result['ttft_s']:.3f}s, {tg_speed:.1f} t/s, {result['completion_tokens']} tokens")
+        print(f"TTFT={result['ttft_s']:.3f}s (http={result['http_overhead_s']:.3f}s, server={result['server_ttft_s']:.3f}s), {tg_speed:.1f} t/s, {result['completion_tokens']} tokens")
         all_runs.append(result)
 
     elapsed = time.monotonic() - start_time
@@ -543,11 +566,13 @@ def run_lmstudio_bench(
 
     # Compute metrics
     ttft_values = [r["ttft_s"] for r in measured_runs]
+    server_ttft_values = [r["server_ttft_s"] for r in measured_runs]
+    http_overhead_values = [r["http_overhead_s"] for r in measured_runs]
     tg_values = [r["completion_tokens"] / r["generation_s"] for r in measured_runs if r["generation_s"] > 0]
 
-    # Prompt eval speed: prompt_tokens / ttft
-    # LM Studio may not report prompt_tokens in streaming mode, so fall back
-    # to the configured prompt_tokens as an estimate.
+    # Prompt eval speed: prompt_tokens / ttft_s (total, including API overhead).
+    # Using total TTFT because we can't cleanly separate prompt processing from
+    # HTTP overhead in LM Studio. This is a conservative estimate.
     pp_values = []
     for r in measured_runs:
         pt = r["prompt_tokens"] if r["prompt_tokens"] > 0 else params["prompt_tokens"]
@@ -564,12 +589,21 @@ def run_lmstudio_bench(
         "prompt_eval_tokens_per_s": compute_stats(pp_values) if pp_values else {"mean": 0, "std": 0, "values": []},
         "generation_tokens_per_s": compute_stats(tg_values),
         "time_to_first_token_s": compute_stats(ttft_values),
+        "server_ttft_s": compute_stats(server_ttft_values),
+        "http_overhead_s": compute_stats(http_overhead_values),
+        "calibration": {
+            "ttft_s": calibration_ttft_s,
+            "http_overhead_s": calibration_http_s,
+            "server_ttft_s": calibration_server_s,
+        },
         "gpu": gpu_summary,
         "wall_time_s": round(elapsed, 2),
         "engine": "lmstudio",
         "runs": [
             {
                 "ttft_s": round(r["ttft_s"], 4),
+                "http_overhead_s": round(r["http_overhead_s"], 4),
+                "server_ttft_s": round(r["server_ttft_s"], 4),
                 "generation_s": round(r["generation_s"], 4),
                 "prompt_tokens": r["prompt_tokens"],
                 "completion_tokens": r["completion_tokens"],
@@ -868,8 +902,8 @@ def generate_summary(results: list[dict], results_dir: Path):
         "",
         f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
         "",
-        "| Model | Params | Arch | Prompt Eval (t/s) | Generation (t/s) | TTFT (s) | Peak VRAM (MB) | Mean Power (W) |",
-        "|-------|--------|------|-------------------|-----------------|----------|----------------|----------------|",
+        "| Model | Params | Arch | Generation (t/s) | Prompt Eval (t/s) | TTFT Total (s) | TTFT Server (s) | Peak VRAM (MB) | Mean Power (W) |",
+        "|-------|--------|------|-------------------|-------------------|----------------|-----------------|----------------|----------------|",
     ]
 
     for r in sorted(results, key=lambda x: x["model"]):
@@ -877,11 +911,13 @@ def generate_summary(results: list[dict], results_dir: Path):
         pp = metrics["prompt_eval_tokens_per_s"]
         tg = metrics["generation_tokens_per_s"]
         ttft = metrics["time_to_first_token_s"]
+        server_ttft = metrics.get("server_ttft_s", {})
         gpu = metrics["gpu"]
 
         pp_str = f"{pp['mean']:.1f} +/- {pp['std']:.1f}" if pp["mean"] > 0 else "N/A"
         tg_str = f"{tg['mean']:.1f} +/- {tg['std']:.1f}"
         ttft_str = f"{ttft['mean']:.3f} +/- {ttft['std']:.3f}"
+        server_ttft_str = f"{server_ttft['mean']:.3f} +/- {server_ttft['std']:.3f}" if server_ttft.get("mean") is not None else "N/A"
         vram_str = str(gpu.get("peak_vram_mb", "N/A"))
         power_str = str(gpu.get("mean_power_w", "N/A"))
 
@@ -889,7 +925,7 @@ def generate_summary(results: list[dict], results_dir: Path):
         arch_str = r.get("arch", "")
 
         lines.append(
-            f"| {r['model']} | {params_str} | {arch_str} | {pp_str} | {tg_str} | {ttft_str} | {vram_str} | {power_str} |"
+            f"| {r['model']} | {params_str} | {arch_str} | {tg_str} | {pp_str} | {ttft_str} | {server_ttft_str} | {vram_str} | {power_str} |"
         )
 
     lines.append("")
@@ -1096,10 +1132,13 @@ def main():
         pp = metrics["prompt_eval_tokens_per_s"]
         tg = metrics["generation_tokens_per_s"]
         ttft = metrics["time_to_first_token_s"]
+        server_ttft = metrics.get("server_ttft_s", {})
         if pp["mean"] > 0:
             print(f"  Prompt eval: {pp['mean']:.1f} +/- {pp['std']:.1f} t/s")
         print(f"  Generation:  {tg['mean']:.1f} +/- {tg['std']:.1f} t/s")
-        print(f"  TTFT:        {ttft['mean']:.3f} +/- {ttft['std']:.3f} s")
+        print(f"  TTFT total:  {ttft['mean']:.3f} +/- {ttft['std']:.3f} s")
+        if server_ttft.get("mean") is not None:
+            print(f"  TTFT server: {server_ttft['mean']:.3f} +/- {server_ttft['std']:.3f} s")
         if metrics["gpu"].get("peak_vram_mb"):
             print(f"  Peak VRAM:   {metrics['gpu']['peak_vram_mb']} MB")
         if metrics["gpu"].get("mean_power_w"):
