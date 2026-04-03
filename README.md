@@ -4,12 +4,49 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 
 > **Goal**: Provide clear, comparable data so engineers can make informed decisions about hardware and model selection for local inference workloads.
 
-## Hardware Tested
+<!-- BENCHMARK_RESULTS_START -->
+## Results
 
-| GPU | VRAM | Status |
-|-----|------|--------|
-| NVIDIA RTX 5090 | 32 GB GDDR7 | **Active** |
-| Apple Silicon (M-series) | Unified Memory | Coming soon |
+> Last updated: 2026-04-03 | 512 prompt tokens, 128 generation tokens, 3 runs
+
+### Generation Throughput
+![Generation Throughput](charts/generation_throughput.png)
+
+### Time to First Token
+![TTFT Comparison](charts/ttft_comparison.png)
+
+### RTX 5090 (LM Studio)
+
+| Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT (s) | Peak VRAM | Avg Power |
+|-------|--------|------------------:|------------------:|---------:|-----------:|----------:|
+| ministral-3-3b | 3B | **265.2** | 242.7 | 2.11 | 6.1 GB | 111 W |
+| qwen2.5-7b | 7.6B | **145.1** | 238.6 | 2.15 | 10.1 GB | 143 W |
+| granite-3.2-8b | 8B | **189.3** | 240.4 | 2.13 | 7.9 GB | 148 W |
+| llama-3.1-8b | 8B | **135.7** | 240.9 | 2.13 | 10.7 GB | 145 W |
+| qwen3.5-9b | 9B | **170.9** | 237.4 | 2.16 | 9.2 GB | 140 W |
+| gpt-oss-20b | 20B | **260.5** | 225.0 | 2.28 | 13.8 GB | 97 W |
+| devstral-small-2-24b | 24B | **86.2** | 240.3 | 2.13 | 17.3 GB | 223 W |
+| nemotron-3-nano | 30B MoE | **247.3** | 239.2 | 2.14 | 25.6 GB | 110 W |
+| glm-4.7-flash | 30B | **174.3** | 239.2 | 2.14 | 19.8 GB | 112 W |
+| qwen2.5-coder-32b | 32B | **70.9** | 233.0 | 2.20 | 21.9 GB | 156 W |
+
+*NVIDIA GeForce RTX 5090 — 32607 MB VRAM — Engine: LM Studio*
+
+### M2 Mac Studio (MLX)
+
+| Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT (s) | Peak Memory |
+|-------|--------|------------------:|------------------:|---------:|-----------:|
+| qwen2.5-7b | 7.6B | **76.8** | 602.8 | 0.85 | 4.8 GB |
+| llama-3.1-8b | 8B | **72.9** | 566.4 | 0.90 | 5.1 GB |
+| qwen3-8b | 8B | **64.0** | 326.5 | 1.57 | 5.2 GB |
+| gpt-oss-20b | 20B | **85.5** | 501.5 | 1.02 | 11.7 GB |
+| devstral-small-2-24b | 24B | **24.4** | 104.2 | 4.92 | 13.8 GB |
+| nemotron-3-nano | 30B MoE | **93.0** | 468.6 | 1.09 | 19.0 GB |
+| glm-4.7-flash | 30B | **52.6** | 413.7 | 1.24 | 17.5 GB |
+| qwen2.5-coder-32b | 32B | **18.0** | 126.8 | 4.04 | 19.1 GB |
+
+*Apple M2 Max — 64.0 GB unified memory — Engine: MLX*
+<!-- BENCHMARK_RESULTS_END -->
 
 ## Metrics Captured
 
@@ -22,34 +59,6 @@ Every benchmark run captures the following metrics, averaged over 3 runs with st
 | **Time to first token (TTFT)** | Latency from submitting a prompt to receiving the first output token. Critical for perceived responsiveness. |
 | **Peak VRAM usage** | Maximum GPU memory consumed during inference. Determines which models fit on your hardware. |
 | **Power consumption** | GPU power draw sampled at 100 ms intervals via `nvidia-smi`. Useful for efficiency comparisons and thermal planning. |
-
-## Models Tested
-
-Each model is tested at multiple quantisation levels where VRAM allows:
-
-| Model | Parameters | Quantisations Tested |
-|-------|-----------|---------------------|
-| Llama 3.1 8B Instruct | 8B | Q4_K_M, Q5_K_M, Q8_0, F16 |
-| Llama 3.1 70B Instruct | 70B | Q4_K_M |
-| Mistral 7B Instruct v0.3 | 7B | Q4_K_M, Q8_0 |
-| Qwen 2.5 7B Instruct | 7B | Q4_K_M, Q8_0 |
-| DeepSeek-R1 Distill Llama 8B | 8B | Q4_K_M, Q8_0 |
-| Phi-4 | 14B | Q4_K_M, Q8_0 |
-| Gemma 2 9B | 9B | Planned |
-
-Quantisation levels:
-- **Q4_K_M** — 4-bit with k-quant medium. Good balance of speed and quality.
-- **Q5_K_M** — 5-bit with k-quant medium. Slight quality improvement over Q4.
-- **Q8_0** — 8-bit. Near-native quality, higher VRAM usage.
-- **F16** — Half precision. Baseline quality reference (where VRAM allows).
-
-## Inference Engines
-
-| Engine | Method | Notes |
-|--------|--------|-------|
-| **llama.cpp** | `llama-bench` | Primary benchmark tool. Direct, low-overhead measurement. |
-| **Ollama** | API timing | Popular local deployment option. Measures end-to-end including API overhead. |
-| **vLLM** | API timing | Production-grade serving. Planned. |
 
 ## Quick Start
 
