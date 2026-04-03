@@ -649,13 +649,24 @@ def run_mlx_bench(
 ) -> dict | None:
     """Execute mlx_lm benchmark and return parsed metrics with resource telemetry."""
 
-    cmd = [
-        mlx_python, "-m", "mlx_lm", "benchmark",
-        "--model", model_id,
-        "--prompt-tokens", str(params["prompt_tokens"]),
-        "--generation-tokens", str(params["generation_tokens"]),
-        "--num-trials", str(params["n_runs"] + 1),  # +1 for warm-up (mlx_lm does its own warmup, but we add 1 extra for consistency)
-    ]
+    is_vlm = params.get("vlm", False)
+    if is_vlm:
+        vlm_script = os.path.join(os.path.dirname(__file__), "mlx_vlm_benchmark.py")
+        cmd = [
+            mlx_python, vlm_script,
+            "--model", model_id,
+            "--prompt-tokens", str(params["prompt_tokens"]),
+            "--generation-tokens", str(params["generation_tokens"]),
+            "--num-trials", str(params["n_runs"] + 1),
+        ]
+    else:
+        cmd = [
+            mlx_python, "-m", "mlx_lm", "benchmark",
+            "--model", model_id,
+            "--prompt-tokens", str(params["prompt_tokens"]),
+            "--generation-tokens", str(params["generation_tokens"]),
+            "--num-trials", str(params["n_runs"] + 1),  # +1 for warm-up (mlx_lm does its own warmup, but we add 1 extra for consistency)
+        ]
 
     print(f"  Command: {' '.join(cmd)}")
 
@@ -1042,6 +1053,7 @@ def main():
                 "params": model_cfg.get("params", ""),
                 "arch": model_cfg.get("arch", ""),
                 "size_gb": model_cfg.get("size_gb", 0),
+                "vlm": model_cfg.get("vlm", False),
             })
         elif engine == "llama-bench":
             for quant in model_cfg.get("quants", ["default"]):
@@ -1098,7 +1110,8 @@ def main():
         elif engine == "mlx":
             mlx_cfg = config.get("mlx", {})
             mlx_python = mlx_cfg.get("python_path", "python3")
-            metrics = run_mlx_bench(mlx_python, run["mlx_model_id"], params, monitor)
+            mlx_params = {**params, "vlm": run.get("vlm", False)}
+            metrics = run_mlx_bench(mlx_python, run["mlx_model_id"], mlx_params, monitor)
         elif engine == "llama-bench":
             model_path = resolve_model_path(config["model_dir"], run["name"], run["quant"])
             if model_path is None:

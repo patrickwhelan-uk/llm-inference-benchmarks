@@ -1,0 +1,74 @@
+{
+  "model": "gemma-4-26b-moe",
+  "params": "26B-A4B MoE",
+  "arch": "Gemma4 MoE",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "Apple M2 Max",
+      "gpu_cores": "30",
+      "metal_support": "N/A",
+      "unified_memory_gb": 64.0
+    },
+    "cpu": {
+      "model": "Apple M2 Max",
+      "cores": 12
+    },
+    "ram_gb": 64.0,
+    "os": {
+      "system": "Darwin",
+      "release": "25.3.0",
+      "version": "Darwin Kernel Version 25.3.0: Wed Jan 28 20:55:08 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T6020"
+    },
+    "python_version": "3.14.3",
+    "timestamp": "2026-04-03T22:21:25.804547+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "mlx",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 465.17,
+      "std": 0.58,
+      "values": [
+        464.722,
+        464.972,
+        465.83
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 61.62,
+      "std": 0.2,
+      "values": [
+        61.389,
+        61.732,
+        61.742
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 1.1,
+      "std": 0.0,
+      "values": [
+        1.1017339398608201,
+        1.1011415741162909,
+        1.0991134104716314
+      ]
+    },
+    "gpu": {
+      "peak_vram_mb": 15621.1,
+      "mean_power_w": null,
+      "peak_power_w": null,
+      "n_samples": 208,
+      "note": "unified_memory_system_wide"
+    },
+    "wall_time_s": 22.43,
+    "engine": "mlx",
+    "raw_output": "Loading mlx-community/gemma-4-26b-a4b-it-4bit...\nRunning warmup..\nTiming with prompt_tokens=512, generation_tokens=128, batch_size=1.\nTrial 1:  prompt_tps=465.184, generation_tps=61.843, peak_memory=15.255\nTrial 2:  prompt_tps=464.722, generation_tps=61.389, peak_memory=15.255\nTrial 3:  prompt_tps=464.972, generation_tps=61.732, peak_memory=15.255\nTrial 4:  prompt_tps=465.830, generation_tps=61.742, peak_memory=15.255\n\n\nFetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]\nFetching 10 files: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:00<00:00, 38199.49it/s]\nmx.metal.reset_peak_memory is deprecated and will be removed in a future version. Use mx.reset_peak_memory instead.\nmx.metal.get_peak_memory is deprecated and will be removed in a future version. Use mx.get_peak_memory instead.\n"
+  }
+}

@@ -43,6 +43,13 @@ models:
     arch: "Mistral3"
     size_gb: 15.0
 
+  - name: "gemma-4-26b-moe"
+    mlx_model_id: "mlx-community/gemma-4-26b-a4b-it-4bit"
+    params: "26B-A4B MoE"
+    arch: "Gemma4 MoE"
+    size_gb: 18.0
+    vlm: true
+
   - name: "glm-4.7-flash"
     mlx_model_id: "mlx-community/GLM-4.7-Flash-4bit"
     params: "30B"
