@@ -1,0 +1,74 @@
+{
+  "model": "ministral-3-3b",
+  "params": "3B",
+  "arch": "Mistral3",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "Apple M2 Max",
+      "gpu_cores": "30",
+      "metal_support": "N/A",
+      "unified_memory_gb": 64.0
+    },
+    "cpu": {
+      "model": "Apple M2 Max",
+      "cores": 12
+    },
+    "ram_gb": 64.0,
+    "os": {
+      "system": "Darwin",
+      "release": "25.3.0",
+      "version": "Darwin Kernel Version 25.3.0: Wed Jan 28 20:55:08 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T6020"
+    },
+    "python_version": "3.14.3",
+    "timestamp": "2026-04-03T22:35:10.427177+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "mlx",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 743.44,
+      "std": 2.43,
+      "values": [
+        746.147,
+        742.742,
+        741.442
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 128.31,
+      "std": 0.15,
+      "values": [
+        128.17,
+        128.467,
+        128.289
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 0.69,
+      "std": 0.0,
+      "values": [
+        0.6861918629975058,
+        0.6893376165613363,
+        0.6905462598557945
+      ]
+    },
+    "gpu": {
+      "peak_vram_mb": 2583.6,
+      "mean_power_w": null,
+      "peak_power_w": null,
+      "n_samples": 3864,
+      "note": "unified_memory_system_wide"
+    },
+    "wall_time_s": 414.99,
+    "engine": "mlx",
+    "raw_output": "Running warmup..\nTiming with prompt_tokens=512, generation_tokens=128, batch_size=1.\nTrial 1:  prompt_tps=740.072, generation_tps=128.343, peak_memory=2.522\nTrial 2:  prompt_tps=746.147, generation_tps=128.170, peak_memory=2.522\nTrial 3:  prompt_tps=742.742, generation_tps=128.467, peak_memory=2.523\nTrial 4:  prompt_tps=741.442, generation_tps=128.289, peak_memory=2.523\nAverages: prompt_tps=742.601, generation_tps=128.317, peak_memory=2.523\n\n\nFetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n\nFetching 10 files:  10%|\u2588         | 1/10 [00:00<00:01,  4.65it/s]\nFetching 10 files:  40%|\u2588\u2588\u2588\u2588      | 4/10 [06:42<10:51, 108.66s/it]\nFetching 10 files: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [06:42<00:00, 40.21s/it]\n"
+  }
+}

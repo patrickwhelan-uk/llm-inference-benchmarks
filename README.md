@@ -7,7 +7,7 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 <!-- BENCHMARK_RESULTS_START -->
 ## Results
 
-> Last updated: 2026-04-03 | 512 prompt tokens, 128 generation tokens, 3 runs
+> Last updated: 2026-04-04 | 512 prompt tokens, 128 generation tokens, 3 runs
 
 ### Generation Throughput
 ![Generation Throughput](charts/generation_throughput.png)
@@ -37,15 +37,20 @@ Systematic, reproducible benchmarks for local LLM inference on consumer-grade ha
 
 | Model | Params | Generation (t/s) | Prompt Eval (t/s) | TTFT (s) | Peak Memory |
 |-------|--------|------------------:|------------------:|---------:|-----------:|
+| ministral-3-3b | 3B | **128.3** | 743.4 | 0.69 | 2.5 GB |
 | qwen2.5-7b | 7.6B | **76.8** | 602.8 | 0.85 | 4.8 GB |
 | llama-3.1-8b | 8B | **72.9** | 566.4 | 0.90 | 5.1 GB |
-| qwen3-8b | 8B | **64.0** | 326.5 | 1.57 | 5.2 GB |
+| granite-3.2-8b | 8B | **64.4** | 491.1 | 1.04 | 5.2 GB |
+| qwen3.5-9b | 9B | **62.7** | 321.2 | 1.59 | 5.9 GB |
 | gpt-oss-20b | 20B | **85.5** | 501.5 | 1.02 | 11.7 GB |
 | devstral-small-2-24b | 24B | **24.4** | 104.2 | 4.92 | 13.8 GB |
 | gemma-4-26b-moe | 26B-A4B MoE | **61.6** | 465.2 | 1.10 | 15.3 GB |
+| qwen3.5-27b | 27B | **20.7** | 91.4 | 5.60 | 16.3 GB |
 | nemotron-3-nano | 30B MoE | **93.0** | 468.6 | 1.09 | 19.0 GB |
 | glm-4.7-flash | 30B | **52.6** | 413.7 | 1.24 | 17.5 GB |
 | qwen2.5-coder-32b | 32B | **18.0** | 126.8 | 4.04 | 19.1 GB |
+| qwen3.5-35b-moe | 35B-A3B MoE | **88.8** | 521.5 | 0.98 | 20.2 GB |
+| lfm2-24b-moe | 64x1.3B MoE | **117.8** | 616.4 | 0.83 | 13.8 GB |
 
 *Apple M2 Max — 64.0 GB unified memory — Engine: MLX*
 <!-- BENCHMARK_RESULTS_END -->

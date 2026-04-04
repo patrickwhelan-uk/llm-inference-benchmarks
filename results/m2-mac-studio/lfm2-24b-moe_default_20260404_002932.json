@@ -1,0 +1,74 @@
+{
+  "model": "lfm2-24b-moe",
+  "params": "64x1.3B MoE",
+  "arch": "LFM2 MoE",
+  "quant": "N/A",
+  "system_info": {
+    "gpu": {
+      "name": "Apple M2 Max",
+      "gpu_cores": "30",
+      "metal_support": "N/A",
+      "unified_memory_gb": 64.0
+    },
+    "cpu": {
+      "model": "Apple M2 Max",
+      "cores": 12
+    },
+    "ram_gb": 64.0,
+    "os": {
+      "system": "Darwin",
+      "release": "25.3.0",
+      "version": "Darwin Kernel Version 25.3.0: Wed Jan 28 20:55:08 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T6020"
+    },
+    "python_version": "3.14.3",
+    "timestamp": "2026-04-03T22:55:02.397768+00:00"
+  },
+  "benchmark_params": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "n_runs": 3,
+    "gpu_layers": -1,
+    "context_size": 4096,
+    "threads": 8
+  },
+  "engine": "mlx",
+  "metrics": {
+    "prompt_eval_tokens_per_s": {
+      "mean": 616.43,
+      "std": 1.03,
+      "values": [
+        615.274,
+        617.245,
+        616.765
+      ]
+    },
+    "generation_tokens_per_s": {
+      "mean": 117.78,
+      "std": 0.29,
+      "values": [
+        117.461,
+        117.841,
+        118.03
+      ]
+    },
+    "time_to_first_token_s": {
+      "mean": 0.83,
+      "std": 0.0,
+      "values": [
+        0.8321495788868049,
+        0.829492340966715,
+        0.830137896929949
+      ]
+    },
+    "gpu": {
+      "peak_vram_mb": 14153.7,
+      "mean_power_w": null,
+      "peak_power_w": null,
+      "n_samples": 18903,
+      "note": "unified_memory_system_wide"
+    },
+    "wall_time_s": 2069.96,
+    "engine": "mlx",
+    "raw_output": "Running warmup..\nTiming with prompt_tokens=512, generation_tokens=128, batch_size=1.\nTrial 1:  prompt_tps=616.813, generation_tps=117.216, peak_memory=13.821\nTrial 2:  prompt_tps=615.274, generation_tps=117.461, peak_memory=13.821\nTrial 3:  prompt_tps=617.245, generation_tps=117.841, peak_memory=13.821\nTrial 4:  prompt_tps=616.765, generation_tps=118.030, peak_memory=13.822\nAverages: prompt_tps=616.524, generation_tps=117.637, peak_memory=13.821\n\n\nFetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n\nFetching 9 files:  11%|\u2588         | 1/9 [00:00<00:02,  2.68it/s]\nFetching 9 files:  44%|\u2588\u2588\u2588\u2588\u258d     | 4/9 [34:12<46:13, 554.80s/it]\nFetching 9 files: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 9/9 [34:12<00:00, 228.10s/it]\n"
+  }
+}
